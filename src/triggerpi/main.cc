@@ -18,20 +18,8 @@ namespace po = boost::program_options;
 #error missing TRIGGERPI_SITE_CONFIGDIR
 #endif
 
-// A helper function to simplify the main part.
-template<class T>
-std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
-{
-    std::copy(v.begin(), v.end(), std::ostream_iterator<T>(os, " "));
-    return os;
-}
 
-#if 0
-po::variables_map & read_config_file(fs::path path, po::variables_map &vm)
-{
-
-}
-#endif
+int board_init(void);
 
 int main(int argc, char *argv[])
 {
@@ -110,7 +98,15 @@ int main(int argc, char *argv[])
           options(cmdline_options).positional(pos_arg).run(), vm);
     notify(vm);
 
+    if (vm.count("help")) {
+        std::cout << usage.str() << visible << "\n";
+        return 0;
+    }
 
+    if (vm.count("version")) {
+        std::cout << "Version " VERSION "\n";
+        return 0;
+    }
 
     if (!vm.count("config")) {
       fs::path site_config_path(TRIGGERPI_SITE_CONFIGDIR"/triggerpi_config");
@@ -180,26 +176,8 @@ int main(int argc, char *argv[])
       }
     }
 
-
-
-#if 0
-
-    if (cmd_line_vm.count("config"))
-    {
-        std::cout << "config files are: "
-             << cmd_line_vm["config"].as<std::string>() << "\n";
-    }
-
-    if (vm.count("help")) {
-        std::cout << usage.str() << visible << "\n";
-        return 0;
-    }
-
-    if (vm.count("version")) {
-        std::cout << "Version " VERSION "\n";
-        return 0;
-    }
-#endif
+    // now do some stuff
+    board_init();
 
   }
   catch(const std::exception &e) {

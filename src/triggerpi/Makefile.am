@@ -14,6 +14,7 @@ additional_libs= \
         $(BOOST_PROGRAM_OPTIONS_LIBS)
 
 additional_ldflags= \
+	-lbcm2835 \
         $(BOOST_LDFLAGS) \
         $(BOOST_REGEX_LDFLAGS) \
         $(BOOST_SYSTEM_LDFLAGS) \
@@ -24,7 +25,8 @@ bin_PROGRAMS= \
         triggerpi
 
 triggerpi_SOURCES= \
-        main.cc
+        main.cc \
+	board_init.cc
 
 triggerpi_CPPFLAGS=$(additional_cppflags)
 triggerpi_LDADD=$(additional_libs)
