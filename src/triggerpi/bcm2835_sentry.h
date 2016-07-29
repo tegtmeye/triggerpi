@@ -1,11 +1,12 @@
-/**
-    Sentry class to ensure setup and disposal of bcm2835 library
- */
-
 #include <bcm2835.h>
 
 #include <stdexcept>
 
+/**
+    Sentry class to ensure setup and disposal of bcm2835 library.
+
+    Singleton class
+ */
 class bcm2835_sentry {
   public:
     bcm2835_sentry(void) {
@@ -30,3 +31,33 @@ class bcm2835_sentry {
 };
 
 std::size_t bcm2835_sentry::init_count = 0;
+
+
+/**
+    Sentry class to enable and disable SPI interface of bcm2835 library
+
+    Singleton class
+ */
+class bcm2835_SPI_sentry {
+  public:
+    bcm2835_SPI_sentry(void) {
+      if(!init_count) {
+        if(!bcm2835_spi_begin())
+          throw std::runtime_error("bcm2835_spi_begin failed");
+        ++init_count;
+      }
+    }
+
+    ~bcm2835_SPI_sentry(void) {
+      if(!init_count)
+        throw std::logic_error("unmatched bcm2835_spi_end()");
+
+      --init_count;
+      bcm2835_spi_end();
+    }
+
+  private:
+    static std::size_t init_count;
+};
+
+std::size_t bcm2835_SPI_sentry::init_count = 0;

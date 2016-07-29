@@ -178,9 +178,27 @@ int main(int argc, char *argv[])
       }
     }
 
-    // now do some stuff
+    // Initialize the bcm2835 library. The library will automatically close
+    // when this goes out of scope.
+    bcm2835_sentry bcm2835lib_sentry;
 
-    bcm2835_sentry sentry;
+
+    /*
+        Enable the SPI interface. SPI will automatically disable and return the
+        Raspberry PI pins to normal when this goes out of scope. If this fails,
+        it could be because we are not executing with enough privileges to
+        access the GPIO pins. TODO-should check for proper permission in the
+        future. In any case, let the user know what is going on before failing
+     */
+    try {
+      bcm2835_SPI_sentry bcm2835lib_sentry;
+    }
+    catch (const std::runtime_error &ex) {
+      std::stringstream err;
+      err << "Failed to initialize SPI interface. Are you running as root? "
+        "Error was: " << ex.what();
+      throw std::runtime_error(err.str());
+    }
 
     board_init();
 
