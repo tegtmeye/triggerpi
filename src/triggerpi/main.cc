@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
         PACKAGE_STRING "\n\n"
         "Utility for triggering things based on ADC input for the "
         "Raspberry Pi.\n"
-        "Report bugs to: "PACKAGE_BUGREPORT "\n\n"
+        "Report bugs to: " PACKAGE_BUGREPORT "\n\n"
         "Usage: " << PACKAGE " [OPTIONS] [CONFIG_FILE]\n";
 
     std::string brief_header = "Try `" PACKAGE " --help' for more "

@@ -1,8 +1,7 @@
 # -Wno-unused-local-typedefs is used to suppress numerous BOOST_STATIC_ASSERT
 # warnings on modern compilers
 additional_cppflags= \
-        -pedantic -Wno-long-long -ansi -Wall \
-        -Wno-keyword-macro -Wno-unused-local-typedefs \
+        -pedantic -Wall -Wno-unused-local-typedefs \
         -DTRIGGERPI_SITE_CONFIGDIR='"$(pkgdatadir)"' \
         -I$(top_srcdir) \
         $(BOOST_CPPFLAGS)
@@ -26,6 +25,9 @@ bin_PROGRAMS= \
 
 triggerpi_SOURCES= \
 	bcm2835_sentry.h \
+	ADC_board.h \
+	waveshare_ADS1256_expansion.h \
+	waveshare_ADS1256_expansion.cc \
         main.cc \
 	board_init.cc
 
