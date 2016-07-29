@@ -1,3 +1,7 @@
+#ifndef BCM2835_SENTRY_H
+#define BCM2835_SENTRY_H
+
+
 #include <bcm2835.h>
 
 #include <stdexcept>
@@ -61,3 +65,5 @@ class bcm2835_SPI_sentry {
 };
 
 std::size_t bcm2835_SPI_sentry::init_count = 0;
+
+#endif
