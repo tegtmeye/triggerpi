@@ -1,5 +1,7 @@
 #include <config.h>
 
+#include "bcm2835_sentry.h"
+
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -177,6 +179,9 @@ int main(int argc, char *argv[])
     }
 
     // now do some stuff
+
+    bcm2835_sentry sentry;
+
     board_init();
 
   }

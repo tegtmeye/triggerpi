@@ -1,3 +1,12 @@
+#include <sstream>
+#include <exception>
+
+
+
+
+
+
+
 /*
  * ADS1256_test.c:
  *	Very simple program to test the serial port. Expects
@@ -800,14 +809,24 @@ uint16_t Voltage_Convert(float Vref, float voltage)
 	return _D_;
 }
 
-/*
-*********************************************************************************************************
-*	name: main
-*	function:
-*	parameter: NULL
-*	The return value:  NULL
-*********************************************************************************************************
-*/
+
+void setup_SPI(void)
+{
+  try {
+    if(!bcm2835_init())
+      throw std::runtime_error("bcm2835_init failed");
+
+  }
+  catch(const std::exception &ex) {
+    std::stringstream err;
+    err << "SPI setup failed: " << ex.what();
+    throw std::runtime_error(err.str());
+  }
+  catch(...) {
+    throw std::runtime_error("Unknown error");
+  }
+}
+
 
 int board_init(void)
 {
@@ -818,10 +837,10 @@ int board_init(void)
 	uint8_t ch_num;
 	int32_t iTemp;
 	uint8_t buf[3];
-    if (!bcm2835_init())
-        return 1;
+//     if (!bcm2835_init())
+//         return 1;
     bcm2835_spi_begin();
-    bcm2835_spi_setBitOrder(BCM2835_SPI_BIT_ORDER_LSBFIRST );      // The default
+    bcm2835_spi_setBitOrder(BCM2835_SPI_BIT_ORDER_LSBFIRST );     // The default
     bcm2835_spi_setDataMode(BCM2835_SPI_MODE1);                   // The default
     bcm2835_spi_setClockDivider(BCM2835_SPI_CLOCK_DIVIDER_1024); // The default
     bcm2835_gpio_fsel(SPICS, BCM2835_GPIO_FSEL_OUTP);//
