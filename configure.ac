@@ -13,6 +13,9 @@ AC_PROG_CC
 AC_PROG_CXX
 AC_PROG_INSTALL
 
+# Check for C++11 support
+AX_CXX_COMPILE_STDCXX([11],[noext],[mandatory])
+
 # Configure libtool
 AC_PROG_LIBTOOL
 
