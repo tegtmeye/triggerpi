@@ -1,5 +1,5 @@
 #include <sstream>
-#include <exception>
+#include <stdexcept>
 
 
 
@@ -813,8 +813,6 @@ uint16_t Voltage_Convert(float Vref, float voltage)
 void setup_SPI(void)
 {
   try {
-    if(!bcm2835_init())
-      throw std::runtime_error("bcm2835_init failed");
 
   }
   catch(const std::exception &ex) {

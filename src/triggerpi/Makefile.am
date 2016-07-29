@@ -25,6 +25,7 @@ bin_PROGRAMS= \
         triggerpi
 
 triggerpi_SOURCES= \
+	bcm2835_sentry.h \
         main.cc \
 	board_init.cc
 
