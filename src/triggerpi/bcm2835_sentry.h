@@ -34,7 +34,6 @@ class bcm2835_sentry {
     static std::size_t init_count;
 };
 
-std::size_t bcm2835_sentry::init_count = 0;
 
 
 /**
@@ -64,6 +63,5 @@ class bcm2835_SPI_sentry {
     static std::size_t init_count;
 };
 
-std::size_t bcm2835_SPI_sentry::init_count = 0;
 
 #endif

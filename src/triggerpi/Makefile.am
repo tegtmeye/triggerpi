@@ -25,6 +25,7 @@ bin_PROGRAMS= \
 
 triggerpi_SOURCES= \
 	bcm2835_sentry.h \
+	bcm2835_sentry.cc \
 	ADC_board.h \
 	waveshare_ADS1256_expansion.h \
 	waveshare_ADS1256_expansion.cc \
