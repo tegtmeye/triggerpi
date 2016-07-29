@@ -2,6 +2,8 @@
     Setup the SPI interface using the bcm2835 library
  */
 
+#include "waveshare_ADS1256_expansion.h"
+
 #include <bcm2835.h>
 
 //CS    -----   SPICS
@@ -15,7 +17,10 @@
 // RST    RPI_GPIO_P1_12
 // SPICS  RPI_GPIO_P1_15
 
-void setup_SPI(void)
+namespace waveshare {
+
+
+void waveshare_ADS1256::setup_com(void)
 {
   // MSBFIRST is the only supported BIT order according to the bcm2835 library
   // and appears to be the preferred order according to the ADS1255/6 datasheet
@@ -41,4 +46,13 @@ void setup_SPI(void)
   // set RPI_GPIO_P1_11 ans INPUT and set as pull-up resistor
   bcm2835_gpio_fsel(DRDY, BCM2835_GPIO_FSEL_INPT);
   bcm2835_gpio_set_pud(DRDY, BCM2835_GPIO_PUD_UP);
+}
+
+void waveshare_ADS1256::initialize(void)
+{
+
+}
+
+
+
 }
