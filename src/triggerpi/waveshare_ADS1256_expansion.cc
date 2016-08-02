@@ -242,9 +242,9 @@ void waveshare_ADS1256::setup_com(void)
 
 void waveshare_ADS1256::initialize(void)
 {
-  std::cerr << "got " << _vm.count("AC.channel") << "\n";
+  std::cerr << "got " << _vm.count("ADC.channel") << "\n";
   // Set up channels first. If there are no channels, then nothing to do.
-  if(_vm.count("AC.channel")) {
+  if(_vm.count("ADC.channel")) {
     const std::vector<std::string> &channel_vec =
       _vm["ADC.channel"].as< std::vector<std::string> >();
 
