@@ -209,7 +209,7 @@ void write_to_registers(uint8_t reg_start, char *data, uint8_t num)
 
 waveshare_ADS1256::waveshare_ADS1256(const po::variables_map &vm)
  :ADC_board(vm), sample_rate(detail::validate_translate_sample_rate(vm)),
-  gain(detail::validate_translate_gain(vm)),used_pins(8,0) {}
+  gain(detail::validate_translate_gain(vm)),used_pins(9,0) {}
 
 
 void waveshare_ADS1256::setup_com(void)
@@ -299,8 +299,8 @@ void waveshare_ADS1256::validate_assign_channel(const std::string config_str)
   static const std::regex com_regex("com", std::regex_constants::icase);
 
   // pin numbers are 0-7 and 8=COM
-  int pinA = -1;
-  int pinB = -1;
+  unsigned int pinA = 0;
+  unsigned int pinB = 0;
   std::stringstream str(config_str);
   for(std::size_t i=0; str.good(); ++i) {
     std::string substr;
@@ -325,7 +325,7 @@ void waveshare_ADS1256::validate_assign_channel(const std::string config_str)
             "labeled 1-8 or COM where COM is a synonym for 8";
           throw std::runtime_error(err.str());
         }
-        if(pinA < 8 && used_pins[pinA]) {
+        if(used_pins[pinA]) {
           std::stringstream err;
           err << "'" << substr << "' has been used previously. Pins must be "
             "only used once in a channel assignment";
@@ -352,7 +352,7 @@ void waveshare_ADS1256::validate_assign_channel(const std::string config_str)
             "labeled 1-8 or COM where COM is a synonym for 8";
           throw std::runtime_error(err.str());
         }
-        if(pinB < 8 && (used_pins[pinB] || pinB == pinA)) {
+        if(used_pins[pinB] || pinB == pinA) {
           std::stringstream err;
           err << "'" << substr << "' has been used previously. Pins must be "
             "only used once in a channel assignment";
