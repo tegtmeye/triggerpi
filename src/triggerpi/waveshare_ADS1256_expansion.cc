@@ -299,8 +299,8 @@ void waveshare_ADS1256::validate_assign_channel(const std::string config_str)
   static const std::regex com_regex("com", std::regex_constants::icase);
 
   // pin numbers are 0-7 and 8=COM
-  int pinA;
-  int pinB;
+  int pinA = -1;
+  int pinB = -1;
   std::stringstream str(config_str);
   for(std::size_t i=0; str.good(); ++i) {
     std::string substr;

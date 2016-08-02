@@ -20,10 +20,10 @@
   #
   # The ADS1256 can be configured as 8 single-ended or 4 differential channels
   # In any combination.
-  channel=0,COM,single
+  channel=0,COM
 
-  channel=1,COM,single
+  channel=1,COM
 
-  channel=2,3,diff
+  channel=2,3
 
 
