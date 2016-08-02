@@ -19,6 +19,9 @@ AX_CXX_COMPILE_STDCXX([11],[noext],[mandatory])
 # Configure libtool
 AC_PROG_LIBTOOL
 
+# Check for libraries
+AX_LIB_BCM2835([1.5])
+
 # We need boost
 BOOST_REQUIRE([1.5])
 BOOST_FILESYSTEM

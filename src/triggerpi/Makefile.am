@@ -6,6 +6,9 @@ additional_cppflags= \
         -I$(top_srcdir) \
         $(BOOST_CPPFLAGS)
 
+additional_cflags= \
+	$(BCM2835_CFLAGS)
+
 additional_libs= \
         $(BOOST_REGEX_LIBS) \
         $(BOOST_SYSTEM_LIBS) \
@@ -13,7 +16,7 @@ additional_libs= \
         $(BOOST_PROGRAM_OPTIONS_LIBS)
 
 additional_ldflags= \
-	-lbcm2835 \
+	$(BCM2835_LDFLAGS) \
         $(BOOST_LDFLAGS) \
         $(BOOST_REGEX_LDFLAGS) \
         $(BOOST_SYSTEM_LDFLAGS) \
@@ -26,11 +29,14 @@ bin_PROGRAMS= \
 triggerpi_SOURCES= \
 	bcm2835_sentry.h \
 	ADC_board.h \
+	ADC_ops.h \
+	ADC_ops.cc \
 	waveshare_ADS1256_expansion.h \
 	waveshare_ADS1256_expansion.cc \
         main.cc \
 	board_init.cc
 
+triggerpi_CFLAGS=$(additional_cflags)
 triggerpi_CPPFLAGS=$(additional_cppflags)
 triggerpi_LDADD=$(additional_libs)
 triggerpi_LDFLAGS=$(additional_ldflags)

@@ -6,6 +6,12 @@
 
 #include <bcm2835.h>
 
+#include <boost/utility/binary.hpp>
+
+#include <sstream>
+#include <string>
+#include <iostream>
+
 //CS    -----   SPICS
 //DIN   -----   MOSI
 //DOUT  -----   MISO
@@ -13,11 +19,190 @@
 //DRDY  -----   ctl_IO     data  starting
 //RST   -----   ctl_IO     reset
 
-// DRDY   RPI_GPIO_P1_11
-// RST    RPI_GPIO_P1_12
-// SPICS  RPI_GPIO_P1_15
+#define  DRDY  RPI_GPIO_P1_11
+#define  RST  RPI_GPIO_P1_12
+#define	SPICS	RPI_GPIO_P1_15
+
+#define CS_1() bcm2835_gpio_write(SPICS,HIGH)
+#define CS_0()  bcm2835_gpio_write(SPICS,LOW)
+
+#define DRDY_IS_LOW()	((bcm2835_gpio_lev(DRDY)==0))
+
+#define RST_1() 	bcm2835_gpio_write(RST,HIGH);
+#define RST_0() 	bcm2835_gpio_write(RST,LOW);
+
+
+enum {
+	/*Register address, followed by reset the default values */
+	REG_STATUS = 0,	// x1H
+	REG_MUX    = 1, // 01H
+	REG_ADCON  = 2, // 20H
+	REG_DRATE  = 3, // F0H
+	REG_IO     = 4, // E0H
+	REG_OFC0   = 5, // xxH
+	REG_OFC1   = 6, // xxH
+	REG_OFC2   = 7, // xxH
+	REG_FSC0   = 8, // xxH
+	REG_FSC1   = 9, // xxH
+	REG_FSC2   = 10 // xxH
+};
+
+/* Command definition£∫ TTable 24. Command Definitions --- ADS1256 datasheet Page 34 */
+enum {
+	CMD_WAKEUP  = 0x00,	// Completes SYNC and Exits Standby Mode 0000  0000 (00h)
+	CMD_RDATA   = 0x01, // Read Data 0000  0001 (01h)
+	CMD_RDATAC  = 0x03, // Read Data Continuously 0000   0011 (03h)
+	CMD_SDATAC  = 0x0F, // Stop Read Data Continuously 0000   1111 (0Fh)
+	CMD_RREG    = 0x10, // Read from REG rrr 0001 rrrr (1xh)
+	CMD_WREG    = 0x50, // Write to REG rrr 0101 rrrr (5xh)
+	CMD_SELFCAL = 0xF0, // Offset and Gain Self-Calibration 1111    0000 (F0h)
+	CMD_SELFOCAL= 0xF1, // Offset Self-Calibration 1111    0001 (F1h)
+	CMD_SELFGCAL= 0xF2, // Gain Self-Calibration 1111    0010 (F2h)
+	CMD_SYSOCAL = 0xF3, // System Offset Calibration 1111   0011 (F3h)
+	CMD_SYSGCAL = 0xF4, // System Gain Calibration 1111    0100 (F4h)
+	CMD_SYNC    = 0xFC, // Synchronize the A/D Conversion 1111   1100 (FCh)
+	CMD_STANDBY = 0xFD, // Begin Standby Mode 1111   1101 (FDh)
+	CMD_RESET   = 0xFE // Reset to Power-Up Values 1111   1110 (FEh)
+};
+
 
 namespace waveshare {
+
+namespace detail {
+
+unsigned char validate_translate_sample_rate(const po::variables_map &vm)
+{
+  // 30000 is the default sample rate
+  unsigned char result = BOOST_BINARY(11110000);
+
+  if(vm.count("ADC.sample_rate")) {
+    const std::string &sample_rate = vm["ADC.sample_rate"].as<std::string>();
+
+    // Don't be overly clever. Just map to datasheet.
+    if(sample_rate == "30000")
+      result = BOOST_BINARY(11110000);
+    else if(sample_rate == "15000")
+      result = BOOST_BINARY(11100000);
+    else if(sample_rate == "7500")
+      result = BOOST_BINARY(11010000);
+    else if(sample_rate == "3750")
+      result = BOOST_BINARY(11000000);
+    else if(sample_rate == "2000")
+      result = BOOST_BINARY(10110000);
+    else if(sample_rate == "1000")
+      result = BOOST_BINARY(10100001);
+    else if(sample_rate == "500")
+      result = BOOST_BINARY(10010010);
+    else if(sample_rate == "100")
+      result = BOOST_BINARY(10000010);
+    else if(sample_rate == "60")
+      result = BOOST_BINARY(01110010);
+    else if(sample_rate == "50")
+      result = BOOST_BINARY(01100011);
+    else if(sample_rate == "30")
+      result = BOOST_BINARY(01010011);
+    else if(sample_rate == "25")
+      result = BOOST_BINARY(01000011);
+    else if(sample_rate == "15")
+      result = BOOST_BINARY(00110011);
+    else if(sample_rate == "10")
+      result = BOOST_BINARY(00100011);
+    else if(sample_rate == "5")
+      result = BOOST_BINARY(00010011);
+    else if(sample_rate == "2.5")
+      result = BOOST_BINARY(00000011);
+    else {
+      std::stringstream err;
+      err << "Invalid ADC.sample_rate setting for the Waveshare "
+        "expansion board. Possible settings are: 30000, 15000, 7500, "
+        "3750, 2000, 1000, 500, 100, 60, 50, 30, 25, 15, 10, 5, or 2.5 "
+        "samples per second";
+      throw std::runtime_error(err.str());
+    }
+  }
+
+  return result;
+}
+
+unsigned char validate_translate_gain(const po::variables_map &vm)
+{
+  // 1 is the default gain value
+  unsigned char result = 0;
+
+  if(vm.count("ADC.gain")) {
+    const std::string &gain = vm["ADC.gain"].as<std::string>();
+
+    // Don't be overly clever. Just map to datasheet.
+    if(gain == "1")
+      result = BOOST_BINARY(0);
+    else if(gain == "2")
+      result = BOOST_BINARY(001);
+    else if(gain == "4")
+      result = BOOST_BINARY(010);
+    else if(gain == "8")
+      result = BOOST_BINARY(011);
+    else if(gain == "16")
+      result = BOOST_BINARY(100);
+    else if(gain == "32")
+      result = BOOST_BINARY(101);
+    else if(gain == "64")
+      result = BOOST_BINARY(110);
+    else {
+      std::stringstream err;
+      err << "Invalid ADC.gain setting for the Waveshare "
+        "expansion board. Possible settings are: 1, 2, 4, 8, 16, 32, or "
+        "64";
+      throw std::runtime_error(err.str());
+    }
+  }
+
+  return result;
+}
+
+void wait_DRDY(void)
+{
+  // Wait forever.
+  // Depending on what we are doing, this may make more sense as an interrupt
+  for(std::size_t to=0; to<5; ++to) {
+    for(std::size_t i=0; i<400000; ++i) {
+      if(bcm2835_gpio_lev(DRDY)==0)
+        return;
+    }
+
+    std::cerr << "Warning: ADS1256 timed out waiting on DRDY register\n";
+  }
+
+  // if here, abort
+  throw std::runtime_error("Timed out waiting on ADS1256");
+}
+
+/*
+  Write to num registers starting at \c reg_start. \c data is expected to be
+  at least num bytes long
+*/
+void write_to_registers(uint8_t reg_start, char *data, uint8_t num)
+{
+  assert(reg_start <= 10 && num > 0);
+
+  CS_0();
+
+  // first nibble is the command, second is the register number
+  bcm2835_spi_transfer(CMD_WREG | reg_start);
+  // send the number of registers to write to - 1
+  bcm2835_spi_transfer(num-1);
+
+  bcm2835_spi_writenb(data,num);
+
+  CS_1();
+}
+
+
+}
+
+
+waveshare_ADS1256::waveshare_ADS1256(const po::variables_map &vm)
+ :ADC_board(vm), sample_rate(detail::validate_translate_sample_rate(vm)),
+  gain(detail::validate_translate_gain(vm)) {}
 
 
 void waveshare_ADS1256::setup_com(void)
@@ -48,10 +233,32 @@ void waveshare_ADS1256::setup_com(void)
   bcm2835_gpio_set_pud(RPI_GPIO_P1_11, BCM2835_GPIO_PUD_UP);
 }
 
-// void waveshare_ADS1256::initialize(void)
-// {
-//
-// }
+void waveshare_ADS1256::initialize(void)
+{
+  // probably should force reset first
+
+  char regs[4] = {0};
+
+  //STATUS : STATUS REGISTER (ADDRESS 00h);
+  //  MSB first, enable auto-cal, disable input buffer
+  regs[0] = (0 << 3) | (1 << 2) | (0 << 1);
+
+  //MUX : Input Multiplexer Control Register (Address 01h)
+  regs[1] = 0x08; // for now
+
+  //ADCON: A/D Control Register (Address 02h)
+  //  Turn off clock out
+  regs[2] = (0 << 5) | (0 << 2) | gain;
+
+  //DRATE: A/D Data Rate (Address 03h)
+  //  Set the sample rate
+  regs[3] = sample_rate;
+
+  detail::write_to_registers(REG_STATUS,regs,4);
+
+  // ADC should now start to auto-cal, DRDY goes low when done
+  detail::wait_DRDY();
+}
 
 
 

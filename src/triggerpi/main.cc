@@ -1,7 +1,7 @@
 #include <config.h>
 
 #include "ADC_board.h"
-#include "waveshare_ADS1256_expansion.h"
+#include "ADC_ops.h"
 
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
@@ -25,11 +25,29 @@ namespace po = boost::program_options;
 
 int board_init(void);
 
+
+// attempt to get user defaults directory in a platform agnostic way
+fs::path user_pref_dir(void)
+{
+  fs::path pref_dir; // empty
+
+  const char * home = 0;
+  if ((home=getenv("HOME")) || (home = getenv("USERPROFILE")))
+    pref_dir = home;
+
+  const char *hdrive = 0;
+  const char *hpath = 0;
+  if((hdrive = getenv("HOMEDRIVE")) && (hpath = getenv("HOMEPATH")))
+    pref_dir = (fs::path(hdrive)/fs::path(hpath));
+
+  return pref_dir;
+}
+
+
 int main(int argc, char *argv[])
 {
   try {
     // configuration file
-    int opt;
     std::string config_file;
 
     std::stringstream usage;
@@ -72,11 +90,27 @@ int main(int argc, char *argv[])
     // Configuration options
     po::options_description config("Configuration");
     config.add_options()
-        ("optimization", po::value<int>(&opt)->default_value(10),
-              "optimization level")
-        ("include-path,I",
-             po::value<std::vector<std::string> >()->composing(),
-             "include path")
+        ("ADC.system",po::value<std::string>(),
+          "System to configure and use. Exactly one of:\n"
+          "  'waveshare' - The Waveshare High Precision ADC/DAC expansion board"
+          " based on the ADS1256 24-bit ADC and the DAC8532 16-bit DAC\n\n"
+          "NOTE: Currently this is the only supported system.")
+        ("ADC.sample_rate",po::value<std::string>(),
+          "Set the sample rate for the configured ADC. Valid values are based "
+          "on the chosen value of 'system'. If the value of 'ADC.system' is:\n"
+          "  'waveshare' - Then 'sample_rate' is one of 30000, 15000, 7500, "
+          "3750, 2000, 1000, 500, 100, 60, 50, 30, 25, 15, 10, 5, or 2.5 "
+          "samples per second. If missing, the default is 30000 samples per "
+          "second.")
+        ("ADC.gain",po::value<std::string>(),
+          "Set the gain for the configured ADC. Valid values are based "
+          "on the chosen value of 'system'. If the value of 'ADC.system' is:\n"
+          "  'waveshare' - Then 'gain' is one of 1,2,4,8,16,32, or 64. "
+          "If missing, the default is unity gain (1).")
+
+//        ("include-path,I",
+//             po::value<std::vector<std::string> >()->composing(),
+//             "include path")
         ;
 
     // Hidden options, will be allowed both on command line and
@@ -112,7 +146,42 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    // No config file given, order of options precedence is:
+    //  1: command line args
+    //  2: user-local config file
+    //  3: site-config file
     if (!vm.count("config")) {
+      // Try and read user-local config file
+      fs::path user_config_path = user_pref_dir()/fs::path(".triggerpi");
+
+      if (vm.count("verbose")) {
+        std::cout << "Attempting to read user configuration at: "
+          << user_config_path << ": ";
+      }
+
+      if(fs::exists(user_config_path) && is_regular_file(user_config_path)) {
+        fs::ifstream ifs(user_config_path);
+        if(!ifs) {
+          if (vm.count("verbose"))
+            std::cout << "FAILED!\n";
+
+          std::cerr << "Unable to open user configuration file at: "
+          << user_config_path << ", skipping\n";
+        }
+        else {
+          store(po::parse_config_file(ifs, config_file_options),vm);
+          notify(vm);
+
+          if (vm.count("verbose"))
+            std::cout << "Success\n";
+        }
+      }
+      else if (vm.count("verbose")) {
+        std::cout << "FAILED!\nNonexistant or non-regular user configuration"
+          "file: " << user_config_path << ", skipping\n";
+      }
+
+      // Try and read site config file
       fs::path site_config_path(TRIGGERPI_SITE_CONFIGDIR"/triggerpi_config");
 
       if (vm.count("verbose")) {
@@ -141,9 +210,13 @@ int main(int argc, char *argv[])
         std::cout << "FAILED!\nNonexistant or non-regular site configuration"
           "file: " << site_config_path << ", skipping\n";
       }
+
     }
     else {
-      // Only read the given config
+      // User provided a config file. Overlay it with the command line args
+      // Order of precedence is:
+      //  1: command line args
+      //  2: provided config file
       fs::path given_config_path(vm["config"].as<std::string>());
 
       if (vm.count("verbose")) {
@@ -180,10 +253,15 @@ int main(int argc, char *argv[])
       }
     }
 
-    // waveshare ADS1256 expansion board is the only board supported at the
-    // moment
-    std::unique_ptr<ADC_board> board(new waveshare::waveshare_ADS1256());
-    board->setup_com();
+    std::unique_ptr<ADC_board> adc_board;
+
+    // check for required configuration items
+    if(!vm.count("ADC.system") || vm["ADC.system"].as<std::string>()=="none") {
+      if (vm.count("verbose"))
+        std::cout << "Disabling ADC\n";
+    }
+    else
+      adc_board = enable_adc(vm);
 
 
 
