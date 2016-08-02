@@ -5,13 +5,25 @@
   # ADC.
   system=waveshare
 
-  # The ADC sampling rate
+  # The ADC sampling rate for all channels
   #
   # "sample_rate" must be one of the following supported sampling rates:
   # 30000, 15000, 7500, 3750, 2000, 1000, 500, 100, 60, 50, 30, 25, 15, 10, 5
   sample_rate=30000
 
-  # The ADC programmable gain
+  # The ADC programmable gain for all channels
   #
   # "gain" must be one of the following 7 possible gain settings
   # 1, 2, 4, 8, 16, 32, 64
+
+  # Channel configuration
+  #
+  # The ADS1256 can be configured as 8 single-ended or 4 differential channels
+  # In any combination.
+  channel=0,COM,single
+
+  channel=1,COM,single
+
+  channel=2,3,diff
+
+

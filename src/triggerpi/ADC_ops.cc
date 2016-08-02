@@ -24,6 +24,7 @@ std::unique_ptr<ADC_board>  enable_adc(const po::variables_map &vm)
 
 
   adc_board->setup_com();
+  adc_board->initialize();
 
   return adc_board;
 }

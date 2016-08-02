@@ -71,19 +71,18 @@ int main(int argc, char *argv[])
     ("version", "Print version string")
     ("verbose,v", "Be verbose")
     ("config,c", po::value<std::string>(),
-                  "Use configuration file at <path>\n\n"
+                  "Use configuration file at <path>\n"
                   "A configuration file used to define the relevant "
                   "parameters used for reading and triggering. If one exists, "
-                  "first use the default site configuration file located "
-                  "at:\n\n  "
-                    "\"" TRIGGERPI_SITE_CONFIGDIR "/triggerpi_config\"\n\n"
+                  "first use the default site configuration file "
+                    "[" TRIGGERPI_SITE_CONFIGDIR "/triggerpi_config] "
                   "These values are overridden by the local configuration "
-                  "if it exists at:\n\n  \"$(HOME)/." PACKAGE "\"\n\n"
+                  "if it exists [~/." PACKAGE "]\n"
                   "If this option is given, do not use any of the predefined "
                   "configuration files but instead only use the one provided. "
-                  "Any command line options will override the options "
+                  "All command line options will override the options "
                   "set in any configuration file. [CONFIG_FILE] is a shortcut "
-                  "for\n\n  --config CONFIG_FILE.")
+                  "for --config CONFIG_FILE")
     ;
 
 
@@ -93,24 +92,41 @@ int main(int argc, char *argv[])
         ("ADC.system",po::value<std::string>(),
           "System to configure and use. Exactly one of:\n"
           "  'waveshare' - The Waveshare High Precision ADC/DAC expansion board"
-          " based on the ADS1256 24-bit ADC and the DAC8532 16-bit DAC\n\n"
+          " based on the ADS1256 24-bit ADC and the DAC8532 16-bit DAC. "
           "NOTE: Currently this is the only supported system.")
         ("ADC.sample_rate",po::value<std::string>(),
           "Set the sample rate for the configured ADC. Valid values are based "
           "on the chosen value of 'system'. If the value of 'ADC.system' is:\n"
-          "  'waveshare' - Then 'sample_rate' is one of 30000, 15000, 7500, "
+          "  'waveshare' - Then 'sample_rate' is one of 30000 [default], "
+          "15000, 7500, "
           "3750, 2000, 1000, 500, 100, 60, 50, 30, 25, 15, 10, 5, or 2.5 "
-          "samples per second. If missing, the default is 30000 samples per "
-          "second.")
+          "samples per second.")
         ("ADC.gain",po::value<std::string>(),
           "Set the gain for the configured ADC. Valid values are based "
           "on the chosen value of 'system'. If the value of 'ADC.system' is:\n"
-          "  'waveshare' - Then 'gain' is one of 1,2,4,8,16,32, or 64. "
-          "If missing, the default is unity gain (1).")
-
-//        ("include-path,I",
-//             po::value<std::vector<std::string> >()->composing(),
-//             "include path")
+          "  'waveshare' - Then 'gain' is one of 1 [default], 2, 4, 8, 16, 32, "
+          "or 64.")
+       ("ADC.channel",
+            po::value<std::vector<std::string> >(),
+            "Configure each channel as part of the ADC selected with "
+            "'ADC.system'. There can be multiple occurrences of ADC.channel "
+            "depending on the chosen system. The values of each option are "
+            "also system dependent.\n"
+            "  'waveshare' - There are 9 pins that can be configured as up to "
+            "eight single-ended channels, up to four differential channels, "
+            "or any combination thereof. The pins are labeled 1-8 and 'COM'. "
+            "The value is a comma-separated list "
+            "of pin assignments and channel type id. Pins can only be listed "
+            "once with the exception of the COM pin. One end of the "
+            "single-ended channels should "
+            "assigned to 'COM'. Differential channels can be assigned to any "
+            "two pins but it is recommended that they be adjacent to each "
+            "other for optimum performance. For differential channels, the "
+            "first pin is taken to be the positive pin. "
+            "Unlisted pins will be turned off [preferred]. Examples:\n"
+            "  To configure pins 1 for singled ended input and pin 3 and 4 "
+            "for differential:\n"
+            "  --ADC.channel 1,COM --ADC.channel 3,4\n")
         ;
 
     // Hidden options, will be allowed both on command line and

@@ -11,6 +11,8 @@
 
 #include <boost/program_options.hpp>
 
+#include <vector>
+
 namespace waveshare {
 
 class waveshare_ADS1256 :public ADC_board {
@@ -24,9 +26,14 @@ class waveshare_ADS1256 :public ADC_board {
     unsigned char sample_rate;
     unsigned char gain;
 
+    std::vector<char> channel_assignment;
+    std::vector<int> used_pins;
+
     // In this order...
     bcm2835_sentry bcm2835lib_sentry;
     bcm2835_SPI_sentry bcm2835SPI_sentry;
+
+    void validate_assign_channel(const std::string config_str);
 };
 
 

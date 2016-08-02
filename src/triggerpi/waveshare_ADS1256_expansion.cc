@@ -7,9 +7,12 @@
 #include <bcm2835.h>
 
 #include <boost/utility/binary.hpp>
+#include <boost/lexical_cast.hpp>
 
+#include <regex>
 #include <sstream>
 #include <string>
+#include <vector>
 #include <iostream>
 
 //CS    -----   SPICS
@@ -30,6 +33,9 @@
 
 #define RST_1() 	bcm2835_gpio_write(RST,HIGH);
 #define RST_0() 	bcm2835_gpio_write(RST,LOW);
+
+namespace b = boost;
+namespace po = boost::program_options;
 
 
 enum {
@@ -159,6 +165,7 @@ unsigned char validate_translate_gain(const po::variables_map &vm)
   return result;
 }
 
+
 void wait_DRDY(void)
 {
   // Wait forever.
@@ -202,7 +209,7 @@ void write_to_registers(uint8_t reg_start, char *data, uint8_t num)
 
 waveshare_ADS1256::waveshare_ADS1256(const po::variables_map &vm)
  :ADC_board(vm), sample_rate(detail::validate_translate_sample_rate(vm)),
-  gain(detail::validate_translate_gain(vm)) {}
+  gain(detail::validate_translate_gain(vm)),used_pins(8,0) {}
 
 
 void waveshare_ADS1256::setup_com(void)
@@ -235,6 +242,23 @@ void waveshare_ADS1256::setup_com(void)
 
 void waveshare_ADS1256::initialize(void)
 {
+  std::cerr << "got " << _vm.count("AC.channel") << "\n";
+  // Set up channels first. If there are no channels, then nothing to do.
+  if(_vm.count("AC.channel")) {
+    const std::vector<std::string> &channel_vec =
+      _vm["ADC.channel"].as< std::vector<std::string> >();
+
+    for(std::size_t i=0; i<channel_vec.size(); ++i) {
+      std::cerr << "got channel: " << channel_vec[i] << "\n";
+      validate_assign_channel(channel_vec[i]);
+    }
+
+  }
+  else
+    return;
+
+
+
   // probably should force reset first
 
   char regs[4] = {0};
@@ -258,6 +282,97 @@ void waveshare_ADS1256::initialize(void)
 
   // ADC should now start to auto-cal, DRDY goes low when done
   detail::wait_DRDY();
+
+}
+
+
+
+
+
+
+
+
+
+
+void waveshare_ADS1256::validate_assign_channel(const std::string config_str)
+{
+  static const std::regex com_regex("com", std::regex_constants::icase);
+
+  // pin numbers are 0-7 and 8=COM
+  int pinA;
+  int pinB;
+  std::stringstream str(config_str);
+  for(std::size_t i=0; str.good(); ++i) {
+    std::string substr;
+    std::getline(str,substr,',');
+
+    if(i == 0) {
+      if(std::regex_match(substr,com_regex))
+        pinA = 8;
+      else {
+        try {
+          pinA = b::lexical_cast<unsigned int>(substr);
+        }
+        catch(const boost::bad_lexical_cast &ex) {
+          std::stringstream err;
+          err << "'" << substr << "' is an invalid pin name";
+          throw std::runtime_error(err.str());
+        }
+
+        if(pinA > 8) {
+          std::stringstream err;
+          err << "'" << substr << "' is an invalid pin. Pins must be "
+            "labeled 1-8 or COM where COM is a synonym for 8";
+          throw std::runtime_error(err.str());
+        }
+        if(pinA < 8 && used_pins[pinA]) {
+          std::stringstream err;
+          err << "'" << substr << "' has been used previously. Pins must be "
+            "only used once in a channel assignment";
+          throw std::runtime_error(err.str());
+        }
+      }
+    }
+    else if(i == 1) {
+      if(std::regex_match(substr,com_regex))
+        pinB = 8;
+      else {
+        try {
+          pinB = b::lexical_cast<unsigned int>(substr);
+        }
+        catch(const boost::bad_lexical_cast &ex) {
+          std::stringstream err;
+          err << "'" << substr << "' is an invalid pin name";
+          throw std::runtime_error(err.str());
+        }
+
+        if(pinB > 8) {
+          std::stringstream err;
+          err << "'" << substr << "' is an invalid pin. Pins must be "
+            "labeled 1-8 or COM where COM is a synonym for 8";
+          throw std::runtime_error(err.str());
+        }
+        if(pinB < 8 && (used_pins[pinB] || pinB == pinA)) {
+          std::stringstream err;
+          err << "'" << substr << "' has been used previously. Pins must be "
+            "only used once in a channel assignment";
+          throw std::runtime_error(err.str());
+        }
+      }
+    }
+    else {
+      std::stringstream err;
+      err << "unexpected '" << substr << "' in channel assignment. Channel "
+        "directives should be of the form ADC.channel=pinA,pinB";
+      throw std::runtime_error(err.str());
+    }
+  }
+
+  // all is well, now do the assignment and log
+  char MUX = (pinA << 4) | pinB;
+  channel_assignment.push_back(MUX);
+  used_pins.at(pinA) = true;
+  used_pins.at(pinB) = true;
 }
 
 
