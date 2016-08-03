@@ -19,8 +19,10 @@ bool print_data(void *_data, std::size_t channels, std::size_t samples)
       std::printf(" %010i(0x%08X)",data[idx],data[idx]);
       ++idx;
     }
-    std::printf("\r");
+    std::printf("\n");
   }
+
+  printf("\033[2J");
 
   return false;
 }
