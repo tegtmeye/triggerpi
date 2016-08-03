@@ -6,7 +6,7 @@
 
 namespace po = boost::program_options;
 
-std::unique_ptr<ADC_board>  enable_adc(const po::variables_map &vm)
+std::unique_ptr<ADC_board> enable_adc(const po::variables_map &vm)
 {
   const std::string &adc_system = vm["ADC.system"].as<std::string>();
 
@@ -22,6 +22,11 @@ std::unique_ptr<ADC_board>  enable_adc(const po::variables_map &vm)
     throw std::runtime_error(err.str());
   }
 
+
+  adc_board->configure_options();
+
+  if(adc_board->disabled())
+    return std::unique_ptr<ADC_board>(); // empty
 
   adc_board->setup_com();
   adc_board->initialize();

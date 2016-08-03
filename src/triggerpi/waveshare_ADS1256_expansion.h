@@ -19,10 +19,15 @@ class waveshare_ADS1256 :public ADC_board {
   public:
     waveshare_ADS1256(const po::variables_map &vm);
 
+    virtual void configure_options(void);
     virtual void setup_com(void);
     virtual void initialize(void);
 
+    virtual bool disabled(void) const;
+
   private:
+    bool _disabled;
+
     unsigned char sample_rate;
     unsigned char gain;
 
@@ -36,7 +41,10 @@ class waveshare_ADS1256 :public ADC_board {
     void validate_assign_channel(const std::string config_str);
 };
 
-
+inline bool waveshare_ADS1256::disabled(void) const
+{
+  return _disabled;
+}
 
 
 }

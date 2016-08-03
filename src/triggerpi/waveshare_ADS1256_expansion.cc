@@ -208,8 +208,28 @@ void write_to_registers(uint8_t reg_start, char *data, uint8_t num)
 
 
 waveshare_ADS1256::waveshare_ADS1256(const po::variables_map &vm)
- :ADC_board(vm), sample_rate(detail::validate_translate_sample_rate(vm)),
+ :ADC_board(vm), _disabled(false),
+  sample_rate(detail::validate_translate_sample_rate(vm)),
   gain(detail::validate_translate_gain(vm)),used_pins(9,0) {}
+
+
+void waveshare_ADS1256::configure_options(void)
+{
+  std::cerr << "got " << _vm.count("ADC.channel") << "\n";
+  // Set up channels first. If there are no channels, then nothing to do.
+  if(_vm.count("ADC.channel")) {
+    const std::vector<std::string> &channel_vec =
+      _vm["ADC.channel"].as< std::vector<std::string> >();
+
+    for(std::size_t i=0; i<channel_vec.size(); ++i) {
+      std::cerr << "got channel: " << channel_vec[i] << "\n";
+      validate_assign_channel(channel_vec[i]);
+    }
+  }
+
+  if(channel_assignment.empty())
+    _disabled = true;
+}
 
 
 void waveshare_ADS1256::setup_com(void)
@@ -242,20 +262,6 @@ void waveshare_ADS1256::setup_com(void)
 
 void waveshare_ADS1256::initialize(void)
 {
-  std::cerr << "got " << _vm.count("ADC.channel") << "\n";
-  // Set up channels first. If there are no channels, then nothing to do.
-  if(_vm.count("ADC.channel")) {
-    const std::vector<std::string> &channel_vec =
-      _vm["ADC.channel"].as< std::vector<std::string> >();
-
-    for(std::size_t i=0; i<channel_vec.size(); ++i) {
-      std::cerr << "got channel: " << channel_vec[i] << "\n";
-      validate_assign_channel(channel_vec[i]);
-    }
-
-  }
-  else
-    return;
 
 
 
