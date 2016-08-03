@@ -295,22 +295,24 @@ void waveshare_ADS1256::trigger_sampling(
     // already have the correct channel loaded in MUX
     detail::wait_DRDY();
 
-    // switch to the jth channel
+    // switch to the first channel
     detail::write_to_registers(REG_MUX,&(channel_assignment[0]),1);
+    bcm2835_delayMicroseconds(5);
 
-    // wait?
     CS_0();
     bcm2835_spi_transfer(CMD_SYNC);
     CS_1();
+    bcm2835_delayMicroseconds(5);
 
-    // wait?
     CS_0();
     bcm2835_spi_transfer(CMD_WAKEUP);
     CS_1();
+    bcm2835_delayMicroseconds(25);
 
     // wait?
     CS_0();
     bcm2835_spi_transfer(CMD_RDATA);
+    bcm2835_delayMicroseconds(10);
 
     //don't actually read the data yet
     prepped_initial_channel = true;
@@ -332,31 +334,30 @@ void waveshare_ADS1256::trigger_sampling(
       // switch to the next channel
       detail::write_to_registers(REG_MUX,
         &(channel_assignment[(idx+1)%channels]),1);
+      bcm2835_delayMicroseconds(5);
 
-      // wait?
       CS_0();
       bcm2835_spi_transfer(CMD_SYNC);
       CS_1();
+      bcm2835_delayMicroseconds(5);
 
-      // wait?
       CS_0();
       bcm2835_spi_transfer(CMD_WAKEUP);
       CS_1();
+      bcm2835_delayMicroseconds(25);
 
-      // wait?
       CS_0();
       bcm2835_spi_transfer(CMD_RDATA);
+      bcm2835_delayMicroseconds(10);
 
-      // wait?
       union {
         char buff[4];
         uint32_t ADC_counts;
       };
       bcm2835_spi_transfern(buff+1,3);
+      CS_1();
 
       sample_buffer[idx] = ADC_counts;
-
-      CS_1();
     }
 
     done = callback(sample_buffer.data(),enabled_channels(),samples);

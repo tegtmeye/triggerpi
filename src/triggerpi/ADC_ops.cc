@@ -3,7 +3,7 @@
 
 
 #include <memory>
-#include <iostream>
+#include <cstdio>
 
 namespace po = boost::program_options;
 
@@ -16,12 +16,12 @@ bool print_data(void *_data, std::size_t channels, std::size_t samples)
   std::size_t idx = 0;
   for(std::size_t i=0; i<samples; ++i) {
     for(std::size_t j=0; j<channels; ++j) {
-      std::cout << " " << data[idx++];
+      std::printf(" %010u",data[idx++]);
     }
-    std::cout << std::endl;
+    std::printf("\r");
   }
 
-  return true;
+  return false;
 }
 
 std::unique_ptr<ADC_board> enable_adc(const po::variables_map &vm)
