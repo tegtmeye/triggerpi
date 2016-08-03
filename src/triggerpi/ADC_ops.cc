@@ -16,7 +16,8 @@ bool print_data(void *_data, std::size_t channels, std::size_t samples)
   std::size_t idx = 0;
   for(std::size_t i=0; i<samples; ++i) {
     for(std::size_t j=0; j<channels; ++j) {
-      std::printf(" %010u",data[idx++]);
+      std::printf(" %010i(%X)",data[idx],data[idx]);
+      ++idx;
     }
     std::printf("\r");
   }
@@ -51,7 +52,7 @@ std::unique_ptr<ADC_board> enable_adc(const po::variables_map &vm)
 
 
 
-  ADC_board::sample_callback_type callback(print_data<uint32_t>);
+  ADC_board::sample_callback_type callback(print_data<int32_t>);
   adc_board->trigger_sampling(callback,1);
 
   return adc_board;

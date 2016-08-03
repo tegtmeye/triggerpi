@@ -352,7 +352,7 @@ void waveshare_ADS1256::trigger_sampling(
 
       union {
         char buff[4];
-        uint32_t ADC_counts;
+        int32_t ADC_counts = 0;
       };
       bcm2835_spi_transfern(buff+1,3);
       CS_1();
