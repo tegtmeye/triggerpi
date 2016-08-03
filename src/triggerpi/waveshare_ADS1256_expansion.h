@@ -23,9 +23,18 @@ class waveshare_ADS1256 :public ADC_board {
     virtual void setup_com(void);
     virtual void initialize(void);
 
+    virtual void trigger_sampling(const std::function<bool(void *)> &callback,
+      std::size_t samples);
+
+    virtual unsigned int bit_depth(void);
+
+    virtual unsigned int enabled_channels(void);
+
     virtual bool disabled(void) const;
 
   private:
+    typedef std::vector<uint32_t> sample_buffer_type;
+
     bool _disabled;
 
     unsigned char sample_rate;
@@ -33,6 +42,10 @@ class waveshare_ADS1256 :public ADC_board {
 
     std::vector<char> channel_assignment;
     std::vector<int> used_pins;
+
+    sample_buffer_type sample_buffer;
+    bool prepped_initial_channel;
+
 
     // In this order...
     bcm2835_sentry bcm2835lib_sentry;
@@ -44,6 +57,16 @@ class waveshare_ADS1256 :public ADC_board {
 inline bool waveshare_ADS1256::disabled(void) const
 {
   return _disabled;
+}
+
+inline unsigned int waveshare_ADS1256::bit_depth(void)
+{
+  return 24;
+}
+
+inline unsigned int waveshare_ADS1256::enabled_channels(void)
+{
+  return channel_assignment.size();
 }
 
 

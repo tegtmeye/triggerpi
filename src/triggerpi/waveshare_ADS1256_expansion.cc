@@ -215,16 +215,13 @@ waveshare_ADS1256::waveshare_ADS1256(const po::variables_map &vm)
 
 void waveshare_ADS1256::configure_options(void)
 {
-  std::cerr << "got " << _vm.count("ADC.channel") << "\n";
   // Set up channels first. If there are no channels, then nothing to do.
   if(_vm.count("ADC.channel")) {
     const std::vector<std::string> &channel_vec =
       _vm["ADC.channel"].as< std::vector<std::string> >();
 
-    for(std::size_t i=0; i<channel_vec.size(); ++i) {
-      std::cerr << "got channel: " << channel_vec[i] << "\n";
+    for(std::size_t i=0; i<channel_vec.size(); ++i)
       validate_assign_channel(channel_vec[i]);
-    }
   }
 
   if(channel_assignment.empty())
@@ -262,9 +259,6 @@ void waveshare_ADS1256::setup_com(void)
 
 void waveshare_ADS1256::initialize(void)
 {
-
-
-
   // probably should force reset first
 
   char regs[4] = {0};
@@ -291,6 +285,83 @@ void waveshare_ADS1256::initialize(void)
 
 }
 
+
+void waveshare_ADS1256::trigger_sampling(
+  const std::function<bool(void *)> &callback, std::size_t samples)
+{
+  if(!prepped_initial_channel) {
+    // set the MUX to the first channel so that the conversion will be the
+    // first one read. After a sampling cycle has taken place, the ADC will
+    // already have the correct channel loaded in MUX
+    detail::wait_DRDY();
+
+    // switch to the jth channel
+    detail::write_to_registers(REG_MUX,&(channel_assignment[0]),1);
+
+    // wait?
+    CS_0();
+    bcm2835_spi_transfer(CMD_SYNC);
+    CS_1();
+
+    // wait?
+    CS_0();
+    bcm2835_spi_transfer(CMD_WAKEUP);
+    CS_1();
+
+    // wait?
+    CS_0();
+    bcm2835_spi_transfer(CMD_RDATA);
+
+    //don't actually read the data yet
+    prepped_initial_channel = true;
+  }
+
+  sample_buffer.resize(samples*channel_assignment.size());
+
+  bool done = false;
+  while(!done) {
+    // cycling through the channels is done with a one cycle lag. That is,
+    // while we are pulling the converted data off of the ADC's register, we
+    // have already switched the conversion hardware to the next channel so that
+    // off it can be settling down while we are in the process of pulling the
+    // data for the previous conversion. See the datasheet pg. 21
+    std::size_t channels = channel_assignment.size();
+    for(std::size_t idx = 0; idx < sample_buffer.size(); ++idx) {
+      detail::wait_DRDY();
+
+      // switch to the next channel
+      detail::write_to_registers(REG_MUX,
+        &(channel_assignment[(idx+1)%channels]),1);
+
+      // wait?
+      CS_0();
+      bcm2835_spi_transfer(CMD_SYNC);
+      CS_1();
+
+      // wait?
+      CS_0();
+      bcm2835_spi_transfer(CMD_WAKEUP);
+      CS_1();
+
+      // wait?
+      CS_0();
+      bcm2835_spi_transfer(CMD_RDATA);
+
+      // wait?
+      union {
+        char buff[4];
+        uint32_t ADC_counts;
+      };
+      bcm2835_spi_transfern(buff+1,3);
+
+      sample_buffer[idx] = ADC_counts;
+
+      CS_1();
+    }
+
+    done = callback(sample_buffer.data());
+  }
+}
 
 
 
