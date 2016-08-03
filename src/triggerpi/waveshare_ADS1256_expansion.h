@@ -23,8 +23,8 @@ class waveshare_ADS1256 :public ADC_board {
     virtual void setup_com(void);
     virtual void initialize(void);
 
-    virtual void trigger_sampling(const std::function<bool(void *)> &callback,
-      std::size_t samples);
+    virtual void trigger_sampling(
+      const ADC_board::sample_callback_type &callback, std::size_t samples);
 
     virtual unsigned int bit_depth(void);
 

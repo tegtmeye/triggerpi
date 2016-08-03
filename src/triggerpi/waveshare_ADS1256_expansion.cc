@@ -287,7 +287,7 @@ void waveshare_ADS1256::initialize(void)
 
 
 void waveshare_ADS1256::trigger_sampling(
-  const std::function<bool(void *)> &callback, std::size_t samples)
+  const ADC_board::sample_callback_type &callback, std::size_t samples)
 {
   if(!prepped_initial_channel) {
     // set the MUX to the first channel so that the conversion will be the
@@ -359,7 +359,7 @@ void waveshare_ADS1256::trigger_sampling(
       CS_1();
     }
 
-    done = callback(sample_buffer.data());
+    done = callback(sample_buffer.data(),enabled_channels(),samples);
   }
 }
 

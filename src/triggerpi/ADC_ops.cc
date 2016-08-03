@@ -3,8 +3,26 @@
 
 
 #include <memory>
+#include <iostream>
 
 namespace po = boost::program_options;
+
+
+template<typename T>
+bool print_data(void *_data, std::size_t channels, std::size_t samples)
+{
+  T *data = reinterpret_cast<T*>(_data);
+
+  std::size_t idx = 0;
+  for(std::size_t i=0; i<samples; ++i) {
+    for(std::size_t j=0; j<channels; ++j) {
+      std::cout << " " << data[idx++];
+    }
+    std::cout << std::endl;
+  }
+
+  return true;
+}
 
 std::unique_ptr<ADC_board> enable_adc(const po::variables_map &vm)
 {
@@ -30,6 +48,11 @@ std::unique_ptr<ADC_board> enable_adc(const po::variables_map &vm)
 
   adc_board->setup_com();
   adc_board->initialize();
+
+
+
+  ADC_board::sample_callback_type callback(print_data<uint32_t>);
+  adc_board->trigger_sampling(callback,1);
 
   return adc_board;
 }
