@@ -357,6 +357,9 @@ void waveshare_ADS1256::trigger_sampling(
       bcm2835_spi_transfern(buff+1,3);
       CS_1();
 
+      // Data comes out of the ADC MSB first---or big endian. Convert to little
+      std::swap(buff[1],buff[3]);
+
       sample_buffer[idx] = ADC_counts;
     }
 
