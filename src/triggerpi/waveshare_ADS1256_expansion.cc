@@ -81,8 +81,9 @@ unsigned char validate_translate_sample_rate(const po::variables_map &vm)
   // 30000 is the default sample rate
   unsigned char result = BOOST_BINARY(11110000);
 
-  if(vm.count("ADC.sample_rate")) {
-    const std::string &sample_rate = vm["ADC.sample_rate"].as<std::string>();
+  if(vm.count("ADC.waveshare.sample_rate")) {
+    const std::string &sample_rate =
+      vm["ADC.waveshare.sample_rate"].as<std::string>();
 
     // Don't be overly clever. Just map to datasheet.
     if(sample_rate == "30000")
@@ -135,8 +136,8 @@ unsigned char validate_translate_gain(const po::variables_map &vm)
   // 1 is the default gain value
   unsigned char result = 0;
 
-  if(vm.count("ADC.gain")) {
-    const std::string &gain = vm["ADC.gain"].as<std::string>();
+  if(vm.count("ADC.waveshare.gain")) {
+    const std::string &gain = vm["ADC.waveshare.gain"].as<std::string>();
 
     // Don't be overly clever. Just map to datasheet.
     if(gain == "1")
@@ -216,9 +217,9 @@ waveshare_ADS1256::waveshare_ADS1256(const po::variables_map &vm)
 void waveshare_ADS1256::configure_options(void)
 {
   // Set up channels first. If there are no channels, then nothing to do.
-  if(_vm.count("ADC.channel")) {
+  if(_vm.count("ADC.waveshare.channel")) {
     const std::vector<std::string> &channel_vec =
-      _vm["ADC.channel"].as< std::vector<std::string> >();
+      _vm["ADC.waveshare.channel"].as< std::vector<std::string> >();
 
     for(std::size_t i=0; i<channel_vec.size(); ++i)
       validate_assign_channel(channel_vec[i]);

@@ -5,16 +5,25 @@
   # ADC.
   system=waveshare
 
+
+# Waveshare High-Precision ADC/DA expansion board configuraiton
+[ADC.waveshare]
+
   # The ADC sampling rate for all channels
   #
   # "sample_rate" must be one of the following supported sampling rates:
   # 30000, 15000, 7500, 3750, 2000, 1000, 500, 100, 60, 50, 30, 25, 15, 10, 5
   sample_rate=30000
 
+  # The Waveshare board has a single common reference for all ADC channels
+  # This setting is used to provide ADC->voltage conversion. Value is in volts.
+  vref=5
+
   # The ADC programmable gain for all channels
   #
   # "gain" must be one of the following 7 possible gain settings
   # 1, 2, 4, 8, 16, 32, 64
+  gain=1
 
   # Channel configuration
   #

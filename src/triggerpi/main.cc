@@ -86,36 +86,38 @@ int main(int argc, char *argv[])
     ;
 
 
-    // Configuration options
-    po::options_description config("Configuration");
-    config.add_options()
+    // Global Configuration options
+    po::options_description global_config("Global Config Options");
+    global_config.add_options()
         ("ADC.system",po::value<std::string>(),
           "System to configure and use. Exactly one of:\n"
           "  'waveshare' - The Waveshare High Precision ADC/DAC expansion board"
           " based on the ADS1256 24-bit ADC and the DAC8532 16-bit DAC. "
           "NOTE: Currently this is the only supported system.")
-        ("ADC.sample_rate",po::value<std::string>(),
-          "Set the sample rate for the configured ADC. Valid values are based "
-          "on the chosen value of 'system'. If the value of 'ADC.system' is:\n"
-          "  'waveshare' - Then 'sample_rate' is one of 30000 [default], "
-          "15000, 7500, "
-          "3750, 2000, 1000, 500, 100, 60, 50, 30, 25, 15, 10, 5, or 2.5 "
-          "samples per second.")
-        ("ADC.gain",po::value<std::string>(),
-          "Set the gain for the configured ADC. Valid values are based "
-          "on the chosen value of 'system'. If the value of 'ADC.system' is:\n"
-          "  'waveshare' - Then 'gain' is one of 1 [default], 2, 4, 8, 16, 32, "
-          "or 64.")
-       ("ADC.channel",
+        ;
+
+    // Waveshare High-Precision ADC/DA Board Configuration options
+    po::options_description waveshare_config(
+      "Waveshare ADC/DA Config Options");
+    waveshare_config.add_options()
+        ("ADC.waveshare.sample_rate",po::value<std::string>(),
+          "Set the sample rate. Valid values are one of 30000 [default], "
+          "15000, 7500, 3750, 2000, 1000, 500, 100, 60, 50, 30, 25, 15, 10, "
+          "5, or 2.5 samples per second.")
+        ("ADC.waveshare.gain",po::value<std::string>(),
+          "Set the gain for the configured ADC. Valid values are one of 1 "
+          "[default], 2, 4, 8, 16, 32, or 64.")
+        ("ADC.waveshare.vref",po::value<float>()->default_value(5.0),
+          "Set the ADC reference voltage. This is used for ADC "
+          "counts->Voltage conversion.")
+       ("ADC.waveshare.channel",
             po::value<std::vector<std::string> >(),
-            "Configure each channel as part of the ADC selected with "
-            "'ADC.system'. There can be multiple occurrences of ADC.channel "
-            "depending on the chosen system. The values of each option are "
-            "also system dependent.\n"
-            "  'waveshare' - There are 9 pins that can be configured as up to "
-            "eight single-ended channels, up to four differential channels, "
-            "or any combination thereof. The pins are labeled 1-8 and 'COM'. "
-            "The value is a comma-separated list "
+            "Configure each ADC channel. There can be multiple occurrences "
+            "of ADC.channel as need to configure the desired input. For the "
+            "Waveshare ADC/DA expansion board, there are 9 pins that can be "
+            "configured as up to eight single-ended channels, up to four "
+            "differential channels, or any combination thereof. The pins are "
+            "labeled 1-8 and 'COM'. The value is a comma-separated list "
             "of pin assignments and channel type id. Pins can only be listed "
             "once with the exception of the COM pin. One end of the "
             "single-ended channels should "
@@ -129,18 +131,28 @@ int main(int argc, char *argv[])
             "  --ADC.channel 1,COM --ADC.channel 3,4\n")
         ;
 
+
+
+
+
+
+
+
+
+
     // Hidden options, will be allowed both on command line and
     // in config file, but will not be shown to the user.
     po::options_description hidden("Hidden options");
 
     po::options_description cmdline_options;
-    cmdline_options.add(general).add(config).add(hidden);
+    cmdline_options.add(general).add(global_config).
+      add(waveshare_config).add(hidden);
 
     po::options_description config_file_options;
-    config_file_options.add(config).add(hidden);
+    config_file_options.add(global_config).add(waveshare_config).add(hidden);
 
     po::options_description visible;
-    visible.add(general).add(config);
+    visible.add(general).add(global_config).add(waveshare_config);
 
     po::positional_options_description pos_arg;
     pos_arg.add("config", 1);
