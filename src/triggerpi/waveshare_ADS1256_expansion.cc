@@ -290,7 +290,7 @@ void waveshare_ADS1256::initialize(void)
 
   //ADCON: A/D Control Register (Address 02h)
   //  Turn off clock out
-  regs[2] = (0 << 5) | (0 << 2) | _gain;
+  regs[2] = (0 << 5) | (0 << 2) | _gain_code;
 
   //DRATE: A/D Data Rate (Address 03h)
   //  Set the sample rate
