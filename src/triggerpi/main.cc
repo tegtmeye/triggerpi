@@ -71,65 +71,74 @@ int main(int argc, char *argv[])
     ("version", "Print version string")
     ("verbose,v", "Be verbose")
     ("config,c", po::value<std::string>(),
-                  "Use configuration file at <path>\n"
-                  "A configuration file used to define the relevant "
-                  "parameters used for reading and triggering. If one exists, "
-                  "first use the default site configuration file "
-                    "[" TRIGGERPI_SITE_CONFIGDIR "/triggerpi_config] "
-                  "These values are overridden by the local configuration "
-                  "if it exists [~/." PACKAGE "]\n"
-                  "If this option is given, do not use any of the predefined "
-                  "configuration files but instead only use the one provided. "
-                  "All command line options will override the options "
-                  "set in any configuration file. [CONFIG_FILE] is a shortcut "
-                  "for --config CONFIG_FILE")
+      "Use configuration file at <path>\n"
+      "A configuration file used to define the relevant "
+      "parameters used for reading and triggering. If one exists, "
+      "first use the default site configuration file "
+        "[" TRIGGERPI_SITE_CONFIGDIR "/triggerpi_config] "
+      "These values are overridden by the local configuration "
+      "if it exists [~/." PACKAGE "]\n"
+      "If this option is given, do not use any of the predefined "
+      "configuration files but instead only use the one provided. "
+      "All command line options will override the options "
+      "set in any configuration file. [CONFIG_FILE] is a shortcut "
+      "for --config CONFIG_FILE")
     ;
 
 
     // Global Configuration options
     po::options_description global_config("Global Config Options");
     global_config.add_options()
-        ("ADC.system",po::value<std::string>(),
-          "System to configure and use. Exactly one of:\n"
-          "  'waveshare' - The Waveshare High Precision ADC/DAC expansion board"
-          " based on the ADS1256 24-bit ADC and the DAC8532 16-bit DAC. "
-          "NOTE: Currently this is the only supported system.")
-        ;
+      ("ADC.system",po::value<std::string>(),
+        "System to configure and use. Exactly one of:\n"
+        "  'waveshare' - The Waveshare High Precision ADC/DAC expansion board"
+        " based on the ADS1256 24-bit ADC and the DAC8532 16-bit DAC. "
+        "NOTE: Currently this is the only supported system.")
+      ;
 
     // Waveshare High-Precision ADC/DA Board Configuration options
     po::options_description waveshare_config(
       "Waveshare ADC/DA Config Options");
     waveshare_config.add_options()
-        ("ADC.waveshare.sample_rate",po::value<std::string>(),
-          "Set the sample rate. Valid values are one of 30000 [default], "
-          "15000, 7500, 3750, 2000, 1000, 500, 100, 60, 50, 30, 25, 15, 10, "
-          "5, or 2.5 samples per second.")
-        ("ADC.waveshare.gain",po::value<std::string>(),
-          "Set the gain for the configured ADC. Valid values are one of 1 "
-          "[default], 2, 4, 8, 16, 32, or 64.")
-        ("ADC.waveshare.vref",po::value<float>()->default_value(5.0),
-          "Set the ADC reference voltage. This is used for ADC "
-          "counts->Voltage conversion.")
-       ("ADC.waveshare.channel",
-            po::value<std::vector<std::string> >(),
-            "Configure each ADC channel. There can be multiple occurrences "
-            "of ADC.channel as need to configure the desired input. For the "
-            "Waveshare ADC/DA expansion board, there are 9 pins that can be "
-            "configured as up to eight single-ended channels, up to four "
-            "differential channels, or any combination thereof. The pins are "
-            "labeled 1-8 and 'COM'. The value is a comma-separated list "
-            "of pin assignments and channel type id. Pins can only be listed "
-            "once with the exception of the COM pin. One end of the "
-            "single-ended channels should "
-            "assigned to 'COM'. Differential channels can be assigned to any "
-            "two pins but it is recommended that they be adjacent to each "
-            "other for optimum performance. For differential channels, the "
-            "first pin is taken to be the positive pin. "
-            "Unlisted pins will be turned off [preferred]. Examples:\n"
-            "  To configure pins 1 for singled ended input and pin 3 and 4 "
-            "for differential:\n"
-            "  --ADC.channel 1,COM --ADC.channel 3,4\n")
-        ;
+      ("ADC.waveshare.sample_rate",po::value<std::string>(),
+        "Set the sample rate. Valid values are one of 30000 [default], "
+        "15000, 7500, 3750, 2000, 1000, 500, 100, 60, 50, 30, 25, 15, 10, "
+        "5, or 2.5 samples per second.")
+      ("ADC.waveshare.gain",po::value<std::string>(),
+        "Set the gain for the configured ADC. Valid values are one of 1 "
+        "[default], 2, 4, 8, 16, 32, or 64.")
+      ("ADC.waveshare.AINCOM",po::value<double>()->default_value(0.0),
+        "Set the ADC center voltage for single-ended inputs. This value is "
+        "only meaningful for ADC count to voltage conversions. That is, the "
+        "ADC counts will be centered around the AINCOM voltage input "
+        "of this value. An ADC count of zero means "
+        "the value set here. If the AINCOM/AGND jumper is installed, then "
+        "this value should be 0 and the ADC value will be from 0->2^23 for "
+        "a unity gain. If the jumper is removed and a 2.5V source is applied "
+        "to AINCOM, set this option to 2.5 and the ADC values will vary from "
+        "-2^22 to +2^22 for a unity gain (23-bits of precision) for a 0->5V "
+        "input. If the gain is set to 2, then the ADC values will vary from "
+        "-2^23 to +2^23 (24-bits of precision) for a 0->5V input")
+     ("ADC.waveshare.channel",
+        po::value<std::vector<std::string> >(),
+        "Configure each ADC channel. There can be multiple occurrences "
+        "of ADC.channel as need to configure the desired input. For the "
+        "Waveshare ADC/DA expansion board, there are 9 pins that can be "
+        "configured as up to eight single-ended channels, up to four "
+        "differential channels, or any combination thereof. The pins are "
+        "labeled 1-8 and 'COM'. The value is a comma-separated list "
+        "of pin assignments and channel type id. Pins can only be listed "
+        "once with the exception of the COM pin. One end of the "
+        "single-ended channels should "
+        "assigned to 'COM'. Differential channels can be assigned to any "
+        "two pins but it is recommended that they be adjacent to each "
+        "other for optimum performance. For differential channels, the "
+        "first pin is taken to be the positive pin. "
+        "Unlisted pins will be turned off [preferred]. Examples:\n"
+        "  To configure pins 1 for singled ended input and pin 3 and 4 "
+        "for differential:\n"
+        "  --ADC.channel 1,COM --ADC.channel 3,4\n")
+      ;
 
 
 

@@ -2,6 +2,8 @@
 #include "waveshare_ADS1256_expansion.h"
 
 
+#include <tuple>
+#include <cstdint>
 #include <memory>
 #include <cstdio>
 
@@ -9,23 +11,30 @@ namespace po = boost::program_options;
 
 
 template<typename T>
-bool print_data(void *_data, std::size_t channels, std::size_t samples)
-{
-  T *data = reinterpret_cast<T*>(_data);
+struct data_printer {
+  data_printer(double val) :_sensitivity(val) {}
 
-  std::size_t idx = 0;
-  for(std::size_t i=0; i<samples; ++i) {
-    for(std::size_t j=0; j<channels; ++j) {
-      std::printf(" %010i(0x%08X)",data[idx],data[idx]);
-      ++idx;
+  bool operator()(void *_data, std::size_t channels, std::size_t samples)
+  {
+    T *data = reinterpret_cast<T*>(_data);
+
+    std::size_t idx = 0;
+    for(std::size_t i=0; i<samples; ++i) {
+      for(std::size_t j=0; j<channels; ++j) {
+        std::printf(" %010i(0x%08X)[%04f]",data[idx],data[idx],
+          data[idx]*_sensitivity);
+        ++idx;
+      }
+      std::printf("\n");
     }
-    std::printf("\n");
+
+    printf("\033[2J");
+
+    return false;
   }
 
-  printf("\033[2J");
-
-  return false;
-}
+  double _sensitivity;
+};
 
 std::unique_ptr<ADC_board> enable_adc(const po::variables_map &vm)
 {
@@ -52,9 +61,14 @@ std::unique_ptr<ADC_board> enable_adc(const po::variables_map &vm)
   adc_board->setup_com();
   adc_board->initialize();
 
+  std::uint_fast32_t snum;
+  std::uint_fast32_t sdenom;
+  std::tie(snum,sdenom) = adc_board->sensitivity();
 
+  double sensitivity = double(snum)/sdenom;
 
-  ADC_board::sample_callback_type callback(print_data<int32_t>);
+  ADC_board::sample_callback_type
+    callback((data_printer<int32_t>(sensitivity)));
   adc_board->trigger_sampling(callback,2);
 
   return adc_board;

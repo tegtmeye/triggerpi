@@ -7,7 +7,9 @@
 
 #include <boost/program_options.hpp>
 
+#include <tuple>
 #include <functional>
+#include <cstdint>
 
 namespace po = boost::program_options;
 
@@ -55,6 +57,15 @@ class ADC_board {
     // number of bits for each sample
     virtual unsigned int bit_depth(void) = 0;
 
+    // True if the ADC counts be considered a signed integer
+    virtual bool ADC_counts_signed(void) = 0;
+
+    // The per-ADC count sensitivity expressed as a rational number. This always
+    // a positive number. Using the rational form ensures significant digit
+    // carryover to calculations.
+    virtual std::tuple<std::uint_fast32_t,uint_fast32_t> sensitivity(void) = 0;
+
+
     // number of active channels that have been configured
     virtual unsigned int enabled_channels(void) = 0;
 
@@ -62,6 +73,7 @@ class ADC_board {
     // function returns true, then no further calls will be made to this
     // object.
     virtual bool disabled(void) const = 0;
+
 
   protected:
     const po::variables_map &_vm;

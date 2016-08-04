@@ -216,7 +216,7 @@ waveshare_ADS1256::waveshare_ADS1256(const po::variables_map &vm)
 
 void waveshare_ADS1256::configure_options(void)
 {
-  // Set up channels first. If there are no channels, then nothing to do.
+  // Set up channels. If there are no channels, then nothing to do.
   if(_vm.count("ADC.waveshare.channel")) {
     const std::vector<std::string> &channel_vec =
       _vm["ADC.waveshare.channel"].as< std::vector<std::string> >();
@@ -227,11 +227,21 @@ void waveshare_ADS1256::configure_options(void)
 
   if(channel_assignment.empty())
     _disabled = true;
+
+  if(!_vm.count("ADC.waveshare.AINCOM"))
+    throw std::logic_error("Missing Waveshare reference voltage");
+
+  aincom = _vm["ADC.waveshare.AINCOM"].as<double>();
 }
 
 
 void waveshare_ADS1256::setup_com(void)
 {
+  // delay initialization of these so that we can check configuration options
+  // first
+  bcm2835lib_sentry.reset(new bcm2835_sentry());
+  bcm2835SPI_sentry.reset(new bcm2835_SPI_sentry());
+
   // MSBFIRST is the only supported BIT order according to the bcm2835 library
   // and appears to be the preferred order according to the ADS1255/6 datasheet
   bcm2835_spi_setBitOrder(BCM2835_SPI_BIT_ORDER_MSBFIRST);
@@ -358,10 +368,23 @@ void waveshare_ADS1256::trigger_sampling(
       bcm2835_spi_transfern(buff,3);
       CS_1();
 
-      // Data comes out of the ADC MSB first---or big endian. Convert to little
-      std::swap(buff[0],buff[2]);
-
-      sample_buffer[idx] = ADC_counts;
+      // Data comes out of the ADC MSB first---or big endian. Convert to
+      // int32_t by placing the first 24 bits into the high bits,
+      // then convert to host endian by dividing by 8. We do this for
+      // portability and to take advantage of the hardware automatically
+      // extending the sign bit during division. For example, say the 24-bit
+      // value is (7F)(FF)(FF) which is positive. We want (in little endian)
+      // (FF)(FF)(7F)(00). So place the 24-bits into the high-bits in
+      // big-endian format. So our 4-byte integer or int32_t in big-endian is:
+      // (7F)(FF)(FF)(00). Next call ntohl which swaps the bytes into the host's
+      // endian. If the host is little endian, it becomes: (00)(FF)(FF)(7F).
+      // Now shift the bites by 8 or one whole byte which is the same as
+      // dividing by 8. Now our number is (FF)(FF)(7F)(00). The advantage here
+      // is that if the number was negative, the division operator would
+      // automatically extend the signbits for 2's complement. If this code
+      // was run on a big-endian machine, the ntohl is a no-op and the division
+      // still applies.
+      sample_buffer[idx] = (ntohl(ADC_counts)>>8);
     }
 
     done = callback(sample_buffer.data(),enabled_channels(),samples);
