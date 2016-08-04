@@ -391,7 +391,7 @@ void waveshare_ADS1256::trigger_sampling(
       // automatically extend the signbits for 2's complement. If this code
       // was run on a big-endian machine, the ntohl is a no-op and the division
       // still applies.
-      sample_buffer[idx] = (ntohl(ADC_counts)>>8);
+      sample_buffer[idx] = (static_cast<int32_t>(ntohl(ADC_counts))>>8);
     }
 
     done = callback(sample_buffer.data(),enabled_channels(),samples);
