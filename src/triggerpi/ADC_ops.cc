@@ -1,7 +1,6 @@
 #include "ADC_ops.h"
 #include "waveshare_ADS1256_expansion.h"
 
-
 #include <tuple>
 #include <cstdint>
 #include <memory>
@@ -61,11 +60,12 @@ std::unique_ptr<ADC_board> enable_adc(const po::variables_map &vm)
   adc_board->setup_com();
   adc_board->initialize();
 
-  std::uint_fast32_t snum;
-  std::uint_fast32_t sdenom;
-  std::tie(snum,sdenom) = adc_board->sensitivity();
+  // sensitivity is 1/(2^23-1) * FSRn/(FSRd * gain) * ADC_count
+  std::uint64_t num;
+  std::uint64_t denom;
+  std::tie(num,denom) = adc_board->sensitivity();
 
-  double sensitivity = double(snum)/sdenom;
+  double sensitivity = double(num)/denom;
 
   ADC_board::sample_callback_type
     callback((data_printer<int32_t>(sensitivity)));

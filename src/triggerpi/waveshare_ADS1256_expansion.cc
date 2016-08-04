@@ -134,29 +134,30 @@ unsigned char validate_translate_sample_rate(const po::variables_map &vm)
   return result;
 }
 
-unsigned char validate_translate_gain(const po::variables_map &vm)
+std::tuple<unsigned char,std::uint32_t>
+validate_translate_gain(const po::variables_map &vm)
 {
   // 1 is the default gain value
-  unsigned char result = 0;
+  std::tuple<unsigned char,std::uint32_t> result;
 
   if(vm.count("ADC.waveshare.gain")) {
     const std::string &gain = vm["ADC.waveshare.gain"].as<std::string>();
 
     // Don't be overly clever. Just map to datasheet.
     if(gain == "1")
-      result = BOOST_BINARY(0);
+      result = std::make_tuple(BOOST_BINARY(0),1);
     else if(gain == "2")
-      result = BOOST_BINARY(001);
+      result = std::make_tuple(BOOST_BINARY(001),2);
     else if(gain == "4")
-      result = BOOST_BINARY(010);
+      result = std::make_tuple(BOOST_BINARY(010),4);
     else if(gain == "8")
-      result = BOOST_BINARY(011);
+      result = std::make_tuple(BOOST_BINARY(011),8);
     else if(gain == "16")
-      result = BOOST_BINARY(100);
+      result = std::make_tuple(BOOST_BINARY(100),16);
     else if(gain == "32")
-      result = BOOST_BINARY(101);
+      result = std::make_tuple(BOOST_BINARY(101),32);
     else if(gain == "64")
-      result = BOOST_BINARY(110);
+      result = std::make_tuple(BOOST_BINARY(110),64);
     else {
       std::stringstream err;
       err << "Invalid ADC.gain setting for the Waveshare "
@@ -214,7 +215,10 @@ void write_to_registers(uint8_t reg_start, char *data, uint8_t num)
 waveshare_ADS1256::waveshare_ADS1256(const po::variables_map &vm)
  :ADC_board(vm), _disabled(false),
   sample_rate(detail::validate_translate_sample_rate(vm)),
-  gain(detail::validate_translate_gain(vm)),used_pins(9,0) {}
+  used_pins(9,0)
+{
+  std::tie(_gain_code,_gain) = detail::validate_translate_gain(vm);
+}
 
 
 void waveshare_ADS1256::configure_options(void)
@@ -286,7 +290,7 @@ void waveshare_ADS1256::initialize(void)
 
   //ADCON: A/D Control Register (Address 02h)
   //  Turn off clock out
-  regs[2] = (0 << 5) | (0 << 2) | gain;
+  regs[2] = (0 << 5) | (0 << 2) | _gain;
 
   //DRATE: A/D Data Rate (Address 03h)
   //  Set the sample rate

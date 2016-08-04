@@ -28,13 +28,13 @@ class waveshare_ADS1256 :public ADC_board {
     virtual void trigger_sampling(
       const ADC_board::sample_callback_type &callback, std::size_t samples);
 
-    virtual unsigned int bit_depth(void);
+    virtual std::uint32_t bit_depth(void) const;
 
-    virtual bool ADC_counts_signed(void);
+    virtual bool ADC_counts_signed(void) const;
 
-    virtual std::tuple<std::uint_fast32_t,uint_fast32_t> sensitivity(void);
+    virtual std::tuple<std::uint64_t,std::uint64_t> sensitivity(void) const;
 
-    virtual unsigned int enabled_channels(void);
+    virtual std::uint32_t enabled_channels(void) const;
 
     virtual bool disabled(void) const;
 
@@ -44,7 +44,8 @@ class waveshare_ADS1256 :public ADC_board {
     bool _disabled;
 
     unsigned char sample_rate;
-    unsigned char gain;
+    unsigned char _gain_code;
+    std::uint32_t _gain;
     double aincom;
 
     std::vector<char> channel_assignment;
@@ -61,34 +62,41 @@ class waveshare_ADS1256 :public ADC_board {
     void validate_assign_channel(const std::string config_str);
 };
 
+inline std::uint32_t waveshare_ADS1256::bit_depth(void) const
+{
+  return 24;
+}
+
+inline bool waveshare_ADS1256::ADC_counts_signed(void) const
+{
+  return true;
+}
+
+inline std::tuple<std::uint64_t,std::uint64_t>
+waveshare_ADS1256::sensitivity(void) const
+{
+  // Vref is assumed to be exactly 2.5 (which it is likely not)
+  // sensitivity = 1/(2^23-1) * FSR/gain
+  std::uint64_t num = 5;
+  std::uint64_t denom = 8388607*_gain;
+  // doesn't appear to be an advantage to factoring, not close to overflowing
+  // can change though if a 32-bit ADC with big gains.
+  // std::uint64_t factor = boost::math::gcd(num,denom);
+
+  return std::make_tuple(num,denom);
+}
+
+inline std::uint32_t waveshare_ADS1256::enabled_channels(void) const
+{
+  return channel_assignment.size();
+}
+
 inline bool waveshare_ADS1256::disabled(void) const
 {
   return _disabled;
 }
 
-inline unsigned int waveshare_ADS1256::bit_depth(void)
-{
-  return 24;
-}
 
-inline bool waveshare_ADS1256::ADC_counts_signed(void)
-{
-  return true;
-}
-
-inline std::tuple<std::uint_fast32_t,uint_fast32_t>
-waveshare_ADS1256::sensitivity(void)
-{
-  // Vref is assumed to be exactly 2.5 (which it is likely not)
-  //2*Vref/(2^23-1*gain)
-  return std::make_tuple(std::uint_fast32_t(5),
-    std::uint_fast32_t(8388607*gain));
-}
-
-inline unsigned int waveshare_ADS1256::enabled_channels(void)
-{
-  return channel_assignment.size();
-}
 
 
 }

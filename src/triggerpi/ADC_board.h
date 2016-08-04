@@ -55,19 +55,23 @@ class ADC_board {
     // State information
 
     // number of bits for each sample
-    virtual unsigned int bit_depth(void) = 0;
+    virtual std::uint32_t bit_depth(void) const = 0;
 
-    // True if the ADC counts be considered a signed integer
-    virtual bool ADC_counts_signed(void) = 0;
+    // True if the ADC counts be considered a signed integer. This is the
+    // native ADC format---not whether or not your measurement will generate a
+    // negative number or not. Most true-differential ADCs will have a native
+    // unsigned format.
+    virtual bool ADC_counts_signed(void) const = 0;
 
-    // The per-ADC count sensitivity expressed as a rational number. This always
-    // a positive number. Using the rational form ensures significant digit
-    // carryover to calculations.
-    virtual std::tuple<std::uint_fast32_t,uint_fast32_t> sensitivity(void) = 0;
-
+    // The full-scale range expressed as a positive rational number.
+    // Using the rational form ensures significant digit carryover to
+    // calculations. Thus, the sensitivity can be expressed as:
+    // FSR/(2^24*gain) for unsigned ADC counts and FSR/(2^23-1*gain) for
+    // signed ADC counts
+    virtual std::tuple<std::uint64_t,std::uint64_t> sensitivity(void) const = 0;
 
     // number of active channels that have been configured
-    virtual unsigned int enabled_channels(void) = 0;
+    virtual std::uint32_t enabled_channels(void) const = 0;
 
     // This function is called prior to calling \c setup_com. If this
     // function returns true, then no further calls will be made to this
