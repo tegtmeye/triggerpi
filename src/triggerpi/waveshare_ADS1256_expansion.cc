@@ -6,6 +6,9 @@
 
 #include <bcm2835.h>
 
+// for htonl
+#include <arpa/inet.h>
+
 #include <boost/utility/binary.hpp>
 #include <boost/lexical_cast.hpp>
 
