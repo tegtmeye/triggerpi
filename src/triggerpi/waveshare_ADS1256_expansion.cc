@@ -18,6 +18,7 @@
 #include <vector>
 #include <iostream>
 #include <cstdlib>
+#include <chrono>
 
 //CS    -----   SPICS
 //DIN   -----   MOSI
@@ -363,8 +364,6 @@ void waveshare_ADS1256::configure_options(void)
     throw std::runtime_error("Missing Waveshare reference voltage");
 
   _Vref = detail::validate_translate_Vref(_vm["ADC.waveshare.Vref"].as<std::string>());
-
-  std::cerr << "VREF= " << _Vref << "\n";
 }
 
 
@@ -464,6 +463,8 @@ void waveshare_ADS1256::trigger_sampling(
 
   sample_buffer.resize(samples*channel_assignment.size());
 
+  std::chrono::high_resolution_clock::time_point start;
+
   bool done = false;
   while(!done) {
     // cycling through the channels is done with a one cycle lag. That is,
@@ -473,6 +474,7 @@ void waveshare_ADS1256::trigger_sampling(
     // data for the previous conversion. See the datasheet pg. 21
     std::size_t channels = channel_assignment.size();
     for(std::size_t idx = 0; idx < sample_buffer.size(); ++idx) {
+      start = std::chrono::high_resolution_clock::now();
       detail::wait_DRDY();
 
       // switch to the next channel
@@ -518,9 +520,14 @@ void waveshare_ADS1256::trigger_sampling(
       // was run on a big-endian machine, the ntohl is a no-op and the division
       // still applies.
       sample_buffer[idx] = (static_cast<int32_t>(ntohl(ADC_counts))>>8);
+      std::chrono::high_resolution_clock::time_point end =
+        std::chrono::high_resolution_clock::now();
+      std::cout << std::chrono::duration_cast<std::chrono::microseconds>(
+        end - start).count() << "us ";
     }
 
     done = callback(sample_buffer.data(),enabled_channels(),samples);
+    std::cout << "\n";
   }
 }
 

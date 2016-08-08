@@ -83,6 +83,13 @@ int main(int argc, char *argv[])
       "All command line options will override the options "
       "set in any configuration file. [CONFIG_FILE] is a shortcut "
       "for --config CONFIG_FILE")
+    ("output,o", po::value<std::string>(),
+      "Output the configured channels into [file] according to format given "
+      "by --format.")
+    ("format,f", po::value<std::string>()->default_value("csv"),
+      "Output the configured channels into [file] according to the given "
+      "format. Only meaningful if --output is also given. Currently the only "
+      "supported format is csv")
     ;
 
 

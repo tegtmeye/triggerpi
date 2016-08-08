@@ -1,6 +1,9 @@
 #include "ADC_ops.h"
 #include "waveshare_ADS1256_expansion.h"
 
+#include <boost/filesystem.hpp>
+#include <boost/filesystem/fstream.hpp>
+
 #include <tuple>
 #include <cstdint>
 #include <memory>
@@ -10,8 +13,8 @@ namespace po = boost::program_options;
 
 
 template<typename T>
-struct data_printer {
-  data_printer(double val) :_sensitivity(val) {}
+struct screen_printer {
+  screen_printer(double val) :_sensitivity(val) {}
 
   bool operator()(void *_data, std::size_t channels, std::size_t samples)
   {
@@ -29,6 +32,33 @@ struct data_printer {
 
     printf("\033[2J");
 
+    return false;
+  }
+
+  double _sensitivity;
+};
+
+template<typename T>
+struct file_printer {
+  file_printer(double val) :_sensitivity(val) {}
+
+  bool operator()(void *_data, std::size_t channels, std::size_t samples)
+  {
+#if 0
+    T *data = reinterpret_cast<T*>(_data);
+
+    std::size_t idx = 0;
+    for(std::size_t i=0; i<samples; ++i) {
+      for(std::size_t j=0; j<channels; ++j) {
+        std::printf(" %010i(0x%08X)[%04f]",data[idx],data[idx],
+          data[idx]*_sensitivity);
+        ++idx;
+      }
+      std::printf("\n");
+    }
+
+    printf("\033[2J");
+#endif
     return false;
   }
 
@@ -65,7 +95,7 @@ std::unique_ptr<ADC_board> enable_adc(const po::variables_map &vm)
   double sensitivity = boost::rational_cast<double>(rational_sens);
 
   ADC_board::sample_callback_type
-    callback((data_printer<int32_t>(sensitivity)));
+    callback((file_printer<int32_t>(sensitivity)));
   adc_board->trigger_sampling(callback,2);
 
   return adc_board;
