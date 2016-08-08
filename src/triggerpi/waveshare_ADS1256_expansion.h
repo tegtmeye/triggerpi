@@ -32,7 +32,7 @@ class waveshare_ADS1256 :public ADC_board {
 
     virtual bool ADC_counts_signed(void) const;
 
-    virtual std::tuple<std::uint64_t,std::uint64_t> sensitivity(void) const;
+    virtual rational_type sensitivity(void) const;
 
     virtual std::uint32_t enabled_channels(void) const;
 
@@ -46,6 +46,7 @@ class waveshare_ADS1256 :public ADC_board {
     unsigned char sample_rate;
     unsigned char _gain_code;
     std::uint32_t _gain;
+    rational_type _Vref;
     double aincom;
 
     std::vector<char> channel_assignment;
@@ -72,18 +73,11 @@ inline bool waveshare_ADS1256::ADC_counts_signed(void) const
   return true;
 }
 
-inline std::tuple<std::uint64_t,std::uint64_t>
+inline waveshare_ADS1256::rational_type
 waveshare_ADS1256::sensitivity(void) const
 {
-  // Vref is assumed to be exactly 2.5 (which it is likely not)
   // sensitivity = 1/(2^23-1) * FSR/gain
-  std::uint64_t num = 5;
-  std::uint64_t denom = 8388607*_gain;
-  // doesn't appear to be an advantage to factoring, not close to overflowing
-  // can change though if a 32-bit ADC with big gains.
-  // std::uint64_t factor = boost::math::gcd(num,denom);
-
-  return std::make_tuple(num,denom);
+  return (_Vref*2)*rational_type(1,8388607 * _gain);
 }
 
 inline std::uint32_t waveshare_ADS1256::enabled_channels(void) const

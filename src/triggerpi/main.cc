@@ -107,6 +107,13 @@ int main(int argc, char *argv[])
       ("ADC.waveshare.gain",po::value<std::string>(),
         "Set the gain for the configured ADC. Valid values are one of 1 "
         "[default], 2, 4, 8, 16, 32, or 64.")
+      ("ADC.waveshare.Vref",po::value<std::string>()->default_value("2.5"),
+        "Set the ADC reference voltage. This is the positive voltage "
+        "difference between pin 4 and pin 3 on the ADS1256 ADC chip itself. "
+        "This setting is only needed if you have actually measured the "
+        "voltage difference between these two pins and you need a higher-"
+        "accuracy measurement. The nominal value for these boards is 2.5V. "
+        "This only affects voltage calculations")
       ("ADC.waveshare.AINCOM",po::value<double>()->default_value(0.0),
         "Set the ADC center voltage for single-ended inputs. This value is "
         "only meaningful for ADC count to voltage conversions. That is, the "

@@ -61,11 +61,8 @@ std::unique_ptr<ADC_board> enable_adc(const po::variables_map &vm)
   adc_board->initialize();
 
   // sensitivity is 1/(2^23-1) * FSRn/(FSRd * gain) * ADC_count
-  std::uint64_t num;
-  std::uint64_t denom;
-  std::tie(num,denom) = adc_board->sensitivity();
-
-  double sensitivity = double(num)/denom;
+  ADC_board::rational_type rational_sens = adc_board->sensitivity();
+  double sensitivity = boost::rational_cast<double>(rational_sens);
 
   ADC_board::sample_callback_type
     callback((data_printer<int32_t>(sensitivity)));

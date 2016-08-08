@@ -6,15 +6,24 @@
 #define ADC_BOARD_H
 
 #include <boost/program_options.hpp>
+#include <boost/rational.hpp>
 
 #include <tuple>
 #include <functional>
 #include <cstdint>
 
+namespace b = boost;
 namespace po = boost::program_options;
 
 class ADC_board {
   public:
+    // All functions returning this rational type are exact as to preserve
+    // downstream calculations such that significant figures can be applied
+    // as appropriate. That is, if this value is 1/3, then it is exact. If
+    // this value needs to be later converted to 'n' significant figures,
+    // then it can without compromising later calculations due to premature
+    // conversion.
+    typedef b::rational<std::uint64_t> rational_type;
     typedef std::function<
       bool(void *, std::size_t, std::size_t)> sample_callback_type;
 
@@ -68,7 +77,7 @@ class ADC_board {
     // calculations. Thus, the sensitivity can be expressed as:
     // FSR/(2^24*gain) for unsigned ADC counts and FSR/(2^23-1*gain) for
     // signed ADC counts
-    virtual std::tuple<std::uint64_t,std::uint64_t> sensitivity(void) const = 0;
+    virtual rational_type sensitivity(void) const = 0;
 
     // number of active channels that have been configured
     virtual std::uint32_t enabled_channels(void) const = 0;

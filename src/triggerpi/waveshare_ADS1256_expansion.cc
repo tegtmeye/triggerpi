@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <cstdlib>
 
 //CS    -----   SPICS
 //DIN   -----   MOSI
@@ -78,6 +79,24 @@ enum {
 namespace waveshare {
 
 namespace detail {
+
+// integer power function for base 10. Modified from:
+// http://stackoverflow.com/questions/101439/the-most-efficient-way-to-implement-an-integer-based-power-function-powint-int
+// Does not check for overflow or unsigned values
+template<typename T>
+T ipow10(T exp)
+{
+    T result = 1;
+    T base = 10;
+    while (exp) {
+      if (exp & 1)
+        result *= base;
+      exp >>= 1;
+      base *= base;
+    }
+
+    return result;
+}
 
 unsigned char validate_translate_sample_rate(const po::variables_map &vm)
 {
@@ -170,6 +189,106 @@ validate_translate_gain(const po::variables_map &vm)
   return result;
 }
 
+ADC_board::rational_type validate_translate_Vref(const std::string Vref_str)
+{
+  typedef ADC_board::rational_type::int_type rint_type;
+
+  static const std::regex digits_regex("[0-9]*");
+  static const ADC_board::rational_type min_vref(5,10);
+  static const ADC_board::rational_type max_vref(26,10);
+
+  rint_type integral = 0;
+  rint_type decimal = 0;
+  rint_type factor = 1;
+
+  bool missing_integral = false;
+  std::stringstream str(Vref_str);
+  try {
+    for(std::size_t i=0; str.good(); ++i) {
+      std::string substr;
+      std::getline(str,substr,'.');
+
+      if(i == 0) {
+        if(substr.empty()) {
+          missing_integral = true;
+          continue;
+        }
+
+        if(!std::regex_match(substr,digits_regex))
+          throw std::runtime_error(Vref_str);
+
+        try {
+          // although stoull accepts a lot more formats that would interfere
+          // here, we've limited the string to just decimal digits. Use stoull
+          // for overflow protection
+          std::size_t pos = 0;
+          integral = std::stoull(substr,&pos);
+          if(pos != substr.size())
+            throw std::runtime_error(substr.substr(pos));
+        }
+        catch(const std::invalid_argument &ex) {
+          throw std::runtime_error(substr);
+        }
+        catch(const std::out_of_range &ex) {
+          std::stringstream err;
+          err << substr << " (overflow)";
+          throw std::runtime_error(err.str());
+        }
+      }
+      else if(i == 1) {
+        if(substr.empty()) {
+          if(missing_integral)
+            throw std::runtime_error(".");
+
+          continue;
+        }
+
+        if(!std::regex_match(substr,digits_regex))
+          throw std::runtime_error(Vref_str);
+
+        try {
+          // although stoull accepts a lot more formats that would interfere
+          // here, we've limited the string to just decimal digits. Use stoull
+          // for overflow protection
+          std::size_t pos = 0;
+          decimal = std::stoull(substr,&pos);
+          if(pos != substr.size())
+            throw std::runtime_error(substr.substr(pos));
+        }
+        catch(const std::invalid_argument &ex) {
+          throw std::runtime_error(substr);
+        }
+        catch(const std::out_of_range &ex) {
+          std::stringstream err;
+          err << substr << " (overflow)";
+          throw std::runtime_error(err.str());
+        }
+
+        factor = ipow10<rint_type>(substr.size());
+      }
+      else
+        throw std::runtime_error(substr);
+    }
+  }
+  catch(const std::runtime_error &ex) {
+    std::stringstream err;
+    err << "Unexpected value '" << ex.what() << "' in waveshare Vref config";
+    throw std::runtime_error(err.str());
+  }
+
+  ADC_board::rational_type result(integral*factor+decimal,factor);
+
+  if(result < min_vref || max_vref < result) {
+    std::stringstream err;
+    err << "Invalid Vref. Values for the ADS1256 is: "
+      "0.5 < Vref < 2.6 volts. Given " << result << " volts.";
+    throw std::runtime_error(err.str());
+  }
+
+  return result;
+}
+
+
 
 void wait_DRDY(void)
 {
@@ -236,9 +355,16 @@ void waveshare_ADS1256::configure_options(void)
     _disabled = true;
 
   if(!_vm.count("ADC.waveshare.AINCOM"))
-    throw std::logic_error("Missing Waveshare reference voltage");
+    throw std::runtime_error("Missing Waveshare AINCOM value");
 
   aincom = _vm["ADC.waveshare.AINCOM"].as<double>();
+
+  if(!_vm.count("ADC.waveshare.Vref"))
+    throw std::runtime_error("Missing Waveshare reference voltage");
+
+  _Vref = detail::validate_translate_Vref(_vm["ADC.waveshare.Vref"].as<std::string>());
+
+  std::cerr << "VREF= " << _Vref << "\n";
 }
 
 

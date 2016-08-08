@@ -23,6 +23,17 @@
   # -2.5->2.5V at 23-bits of precision for a unity gain.
   AINCOM=0.0
 
+  # The ADC1256 reference voltage. This value is nominally 2.5V based on the
+  # board's included LM285-2.5 reference voltage. This value is likely not
+  # precisely 2.5V. The ADC1256 full-scale range is 2*VRef. If you have
+  # actually measured the reference voltage on the actual ADC, you can change
+  # this value to the measured value here if you find it to be off or need
+  # higher accuracy. Note, the reference voltage likely drifts as the chip
+  # heats up. On my board, Vref is measured at a stable 2.524V which translates
+  # into a couple of hundreds of a volt offset which is starting to get into
+  # the noise floor
+  Vref=2.5
+
   # The ADC programmable gain for all channels
   #
   # "gain" must be one of the following 7 possible gain settings
