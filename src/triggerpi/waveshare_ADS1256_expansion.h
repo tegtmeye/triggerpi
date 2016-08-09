@@ -10,6 +10,7 @@
 #include "bcm2835_sentry.h"
 
 #include <boost/program_options.hpp>
+#include <boost/lockfree/spsc_queue.hpp>
 
 #include <tuple>
 #include <cstdint>
@@ -25,12 +26,15 @@ class waveshare_ADS1256 :public ADC_board {
     virtual void setup_com(void);
     virtual void initialize(void);
 
-    virtual void trigger_sampling(
-      const ADC_board::sample_callback_type &callback, std::size_t samples);
+    virtual void trigger_sampling(const data_handler &handler);
+
+    virtual void trigger_sampling_async(const data_handler &handler);
 
     virtual std::uint32_t bit_depth(void) const;
 
     virtual bool ADC_counts_signed(void) const;
+
+    virtual bool ADC_counts_big_endian(void) const;
 
     virtual rational_type sensitivity(void) const;
 
@@ -39,7 +43,11 @@ class waveshare_ADS1256 :public ADC_board {
     virtual bool disabled(void) const;
 
   private:
-    typedef std::vector<uint32_t> sample_buffer_type;
+    typedef std::vector<char> sample_buffer_type;
+    typedef std::shared_ptr<sample_buffer_type> sample_buffer_ptr;
+    typedef b::lockfree::spsc_queue<sample_buffer_ptr> ringbuffer_type;
+
+    static const std::size_t row_block = 1024;
 
     bool _disabled;
 
@@ -52,15 +60,17 @@ class waveshare_ADS1256 :public ADC_board {
     std::vector<char> channel_assignment;
     std::vector<int> used_pins;
 
-    sample_buffer_type sample_buffer;
     bool prepped_initial_channel;
-
 
     // In this order...
     std::shared_ptr<bcm2835_sentry> bcm2835lib_sentry;
     std::shared_ptr<bcm2835_SPI_sentry> bcm2835SPI_sentry;
 
     void validate_assign_channel(const std::string config_str);
+
+    void async_handler(ringbuffer_type &allocation_ringbuffer,
+      ringbuffer_type &ready_ringbuffer,const data_handler &handler,
+      std::atomic<bool> &done);
 };
 
 inline std::uint32_t waveshare_ADS1256::bit_depth(void) const
@@ -69,6 +79,11 @@ inline std::uint32_t waveshare_ADS1256::bit_depth(void) const
 }
 
 inline bool waveshare_ADS1256::ADC_counts_signed(void) const
+{
+  return true;
+}
+
+inline bool waveshare_ADS1256::ADC_counts_big_endian(void) const
 {
   return true;
 }

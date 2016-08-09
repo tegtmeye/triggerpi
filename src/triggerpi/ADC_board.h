@@ -25,7 +25,7 @@ class ADC_board {
     // conversion.
     typedef b::rational<std::uint64_t> rational_type;
     typedef std::function<
-      bool(void *, std::size_t, std::size_t)> sample_callback_type;
+      bool(void *data, std::size_t rows, const ADC_board &)> data_handler;
 
     ADC_board(const po::variables_map &vm) :_vm(vm) {}
     virtual ~ADC_board(void) {}
@@ -36,7 +36,7 @@ class ADC_board {
     // to bringing up the board
     // Pre: none
     // Post: none
-    virtual void configure_options(void) {}
+    virtual void configure_options(void) = 0;
 
     // setup and enable whatever communication mechanism is needed to talk to
     // this ADC system.
@@ -50,16 +50,14 @@ class ADC_board {
     virtual void initialize(void) = 0;
 
     // Start sampling the ADC. The callback will be called with the first
-    // argument a pointer of a two dimensional array of data, the second
-    // argument is the first dimension and corresponds to the number of
-    // enabled channels, and the third argument is the second dimension
-    // that corresponds to the number of samples given in trigger_sampling.
-    // If this callback returns false, sampling stops. The type of the data
-    // in the first argument is the same or next size larger unsigned data type
-    // corresponding to the bit-depth of the ADC. That is, for an 8-bit ADC
-    // the data is of type uint8_t. If it is a 24-bit ADC, the data is uint32_t.
-    virtual void trigger_sampling(const sample_callback_type &callback,
-      std::size_t samples) = 0;
+    // argument a pointer of a n dimensional array of data, the second
+    // argument is this object. The n dimensional array type and size is
+    // determined by the state variables in this object. That is, if
+    // this->bit_depth() = 24, then the data is laid out as a 24 bit number
+    // same for this->ADC_counts_signed()
+    virtual void trigger_sampling(const data_handler &handler) = 0;
+
+    virtual void trigger_sampling_async(const data_handler &handler) = 0;
 
     // State information
 
@@ -71,6 +69,8 @@ class ADC_board {
     // negative number or not. Most true-differential ADCs will have a native
     // unsigned format.
     virtual bool ADC_counts_signed(void) const = 0;
+
+    virtual bool ADC_counts_big_endian(void) const = 0;
 
     // The full-scale range expressed as a positive rational number.
     // Using the rational form ensures significant digit carryover to
@@ -86,7 +86,6 @@ class ADC_board {
     // function returns true, then no further calls will be made to this
     // object.
     virtual bool disabled(void) const = 0;
-
 
   protected:
     const po::variables_map &_vm;

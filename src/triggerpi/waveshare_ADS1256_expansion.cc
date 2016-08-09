@@ -19,6 +19,9 @@
 #include <iostream>
 #include <cstdlib>
 #include <chrono>
+#include <thread>
+#include <atomic>
+#include <functional>
 
 //CS    -----   SPICS
 //DIN   -----   MOSI
@@ -428,7 +431,7 @@ void waveshare_ADS1256::initialize(void)
 
 }
 
-
+#if 0
 void waveshare_ADS1256::trigger_sampling(
   const ADC_board::sample_callback_type &callback, std::size_t samples)
 {
@@ -530,7 +533,242 @@ void waveshare_ADS1256::trigger_sampling(
     std::cout << "\n";
   }
 }
+#endif
 
+
+void waveshare_ADS1256::trigger_sampling(const data_handler &handler)
+{
+  sample_buffer_type sample_buffer(
+    row_block*channel_assignment.size()*bit_depth());
+
+  if(!prepped_initial_channel) {
+    // set the MUX to the first channel so that the conversion will be the
+    // first one read. After a sampling cycle has taken place, the ADC will
+    // already have the correct channel loaded in MUX
+    detail::wait_DRDY();
+
+    // switch to the first channel
+    detail::write_to_registers(REG_MUX,&(channel_assignment[0]),1);
+    bcm2835_delayMicroseconds(5);
+
+    CS_0();
+    bcm2835_spi_transfer(CMD_SYNC);
+    CS_1();
+    bcm2835_delayMicroseconds(5);
+
+    CS_0();
+    bcm2835_spi_transfer(CMD_WAKEUP);
+    CS_1();
+    bcm2835_delayMicroseconds(25);
+
+    // wait?
+    CS_0();
+    bcm2835_spi_transfer(CMD_RDATA);
+    bcm2835_delayMicroseconds(10);
+
+    //don't actually read the data yet
+    prepped_initial_channel = true;
+  }
+
+  bool done = false;
+  while(!done) {
+    // cycling through the channels is done with a one cycle lag. That is,
+    // while we are pulling the converted data off of the ADC's register, we
+    // have already switched the conversion hardware to the next channel so that
+    // off it can be settling down while we are in the process of pulling the
+    // data for the previous conversion. See the datasheet pg. 21
+    std::size_t channels = channel_assignment.size();
+    for(std::size_t idx = 0; idx < sample_buffer.size(); idx+=bit_depth()) {
+      detail::wait_DRDY();
+
+      // switch to the next channel
+      detail::write_to_registers(REG_MUX,
+        &(channel_assignment[(idx+1)%channels]),1);
+      bcm2835_delayMicroseconds(5);
+
+      CS_0();
+      bcm2835_spi_transfer(CMD_SYNC);
+      CS_1();
+      bcm2835_delayMicroseconds(5);
+
+      CS_0();
+      bcm2835_spi_transfer(CMD_WAKEUP);
+      CS_1();
+      bcm2835_delayMicroseconds(25);
+
+      CS_0();
+      bcm2835_spi_transfer(CMD_RDATA);
+      bcm2835_delayMicroseconds(10);
+
+      bcm2835_spi_transfern(sample_buffer.data()+idx,3);
+      CS_1();
+    }
+
+    done = handler(sample_buffer.data(),row_block,*this);
+  }
+
+  prepped_initial_channel = false;
+}
+
+
+void waveshare_ADS1256::async_handler(ringbuffer_type &allocation_ringbuffer,
+  ringbuffer_type &ready_ringbuffer, const data_handler &handler,
+  std::atomic<bool> &done)
+{
+  static const std::chrono::milliseconds nap(100);
+
+  while(!done) {
+    while(!ready_ringbuffer.read_available())
+      std::this_thread::sleep_for(nap);
+
+    sample_buffer_ptr sample_buffer;
+    ready_ringbuffer.pop(sample_buffer);
+
+    done = handler(sample_buffer->data(),row_block,*this);
+
+    allocation_ringbuffer.push(sample_buffer);
+  }
+}
+
+
+void waveshare_ADS1256::trigger_sampling_async(const data_handler &handler)
+{
+  static const std::size_t max_allocation = 32;
+  static const std::chrono::milliseconds nap(100);
+
+  ringbuffer_type allocation_ringbuffer(max_allocation);
+  ringbuffer_type ready_ringbuffer(max_allocation);
+
+  std::size_t buffer_size = row_block*channel_assignment.size()*bit_depth();
+  for(std::size_t i=0; i<max_allocation; ++i)
+    allocation_ringbuffer.push(
+      sample_buffer_ptr(new sample_buffer_type(buffer_size)));
+
+  std::atomic<bool> done(false);
+
+  std::thread servicing_thread(&waveshare_ADS1256::async_handler,*this,
+    std::ref(allocation_ringbuffer), std::ref(ready_ringbuffer),
+    std::cref(handler), std::ref(done));
+
+
+  if(!prepped_initial_channel) {
+    // set the MUX to the first channel so that the conversion will be the
+    // first one read. After a sampling cycle has taken place, the ADC will
+    // already have the correct channel loaded in MUX
+    detail::wait_DRDY();
+
+    // switch to the first channel
+    detail::write_to_registers(REG_MUX,&(channel_assignment[0]),1);
+    bcm2835_delayMicroseconds(5);
+
+    CS_0();
+    bcm2835_spi_transfer(CMD_SYNC);
+    CS_1();
+    bcm2835_delayMicroseconds(5);
+
+    CS_0();
+    bcm2835_spi_transfer(CMD_WAKEUP);
+    CS_1();
+    bcm2835_delayMicroseconds(25);
+
+    // wait?
+    CS_0();
+    bcm2835_spi_transfer(CMD_RDATA);
+    bcm2835_delayMicroseconds(10);
+
+    //don't actually read the data yet
+    prepped_initial_channel = true;
+  }
+
+  while(!done) {
+    // get the next data_block
+    while(!allocation_ringbuffer.read_available()) {
+      std::cerr << "Warning, no buffers available for writing. Ignoring data "
+        "for this time slice!\n";
+      std::this_thread::sleep_for(nap);
+    }
+
+    sample_buffer_ptr sample_buffer;
+    allocation_ringbuffer.pop(sample_buffer);
+
+    // cycling through the channels is done with a one cycle lag. That is,
+    // while we are pulling the converted data off of the ADC's register, we
+    // have already switched the conversion hardware to the next channel so that
+    // off it can be settling down while we are in the process of pulling the
+    // data for the previous conversion. See the datasheet pg. 21
+    std::size_t channels = channel_assignment.size();
+    for(std::size_t idx = 0; idx < sample_buffer->size(); idx+=bit_depth()) {
+      detail::wait_DRDY();
+
+      // switch to the next channel
+      detail::write_to_registers(REG_MUX,
+        &(channel_assignment[(idx+1)%channels]),1);
+      bcm2835_delayMicroseconds(5);
+
+      CS_0();
+      bcm2835_spi_transfer(CMD_SYNC);
+      CS_1();
+      bcm2835_delayMicroseconds(5);
+
+      CS_0();
+      bcm2835_spi_transfer(CMD_WAKEUP);
+      CS_1();
+      bcm2835_delayMicroseconds(25);
+
+      CS_0();
+      bcm2835_spi_transfer(CMD_RDATA);
+      bcm2835_delayMicroseconds(10);
+
+      bcm2835_spi_transfern(sample_buffer->data()+idx,3);
+      CS_1();
+    }
+
+    ready_ringbuffer.push(sample_buffer);
+  }
+
+  prepped_initial_channel = false;
+
+  servicing_thread.join();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// void waveshare_ADS1256::trigger_psampling(
+//   ringbuffer_type &allocation_ringbuffer, ringbuffer_type &data_ringbuffer)
+// {
+//   while(true) {
+//     if(!allocation_ringbuffer.read_available()) {
+//       std::cerr << "Warning, no buffers available for writing. Ignoring data "
+//         "for this time slice!\n";
+//       sleep(1); // use thread sleep
+//     }
+//
+//     aquired_data_sink_ptr data_sink;
+//     allocation_ringbuffer.pop(data_sink);
+//
+//     uint8_t *buf = data_sink.allocate();
+//
+//
+//
+//
+//
+//     // fill handler
+//     data_ringbuffer.push(handler_ptr);
+//   }
+//
+// }
 
 
 

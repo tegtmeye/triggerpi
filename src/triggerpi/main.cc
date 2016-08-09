@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
       }
     }
 
-    std::unique_ptr<ADC_board> adc_board;
+    std::shared_ptr<ADC_board> adc_board;
 
     // check for required configuration items
     if(!vm.count("ADC.system") || vm["ADC.system"].as<std::string>()=="none") {
