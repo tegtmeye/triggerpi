@@ -15,6 +15,7 @@
 #include <tuple>
 #include <cstdint>
 #include <vector>
+#include <atomic>
 
 namespace waveshare {
 

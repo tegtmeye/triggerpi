@@ -20,7 +20,6 @@
 #include <cstdlib>
 #include <chrono>
 #include <thread>
-#include <atomic>
 #include <functional>
 
 //CS    -----   SPICS
