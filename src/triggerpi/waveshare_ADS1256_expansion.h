@@ -41,6 +41,8 @@ class waveshare_ADS1256 :public ADC_board {
 
     virtual std::uint32_t enabled_channels(void) const;
 
+    virtual bool sample_time_prefix(void) const;
+
     virtual bool disabled(void) const;
 
   private:
@@ -49,8 +51,6 @@ class waveshare_ADS1256 :public ADC_board {
     typedef b::lockfree::spsc_queue<sample_buffer_ptr> ringbuffer_type;
 
     static const std::size_t row_block = 1024;
-
-    bool _disabled;
 
     unsigned char sample_rate;
     unsigned char _gain_code;
@@ -61,13 +61,18 @@ class waveshare_ADS1256 :public ADC_board {
     std::vector<char> channel_assignment;
     std::vector<int> used_pins;
 
-    bool prepped_initial_channel;
+    bool _disabled;
+    bool _sample_time_prefix;
+
 
     // In this order...
     std::shared_ptr<bcm2835_sentry> bcm2835lib_sentry;
     std::shared_ptr<bcm2835_SPI_sentry> bcm2835SPI_sentry;
 
     void validate_assign_channel(const std::string config_str);
+
+    void trigger_sampling_impl(const data_handler &handler);
+    void trigger_sampling_wstat_impl(const data_handler &handler);
 
     void async_handler(ringbuffer_type &allocation_ringbuffer,
       ringbuffer_type &ready_ringbuffer,const data_handler &handler,
@@ -104,6 +109,11 @@ inline std::uint32_t waveshare_ADS1256::enabled_channels(void) const
 inline bool waveshare_ADS1256::disabled(void) const
 {
   return _disabled;
+}
+
+inline bool waveshare_ADS1256::sample_time_prefix(void) const
+{
+  return true;;
 }
 
 

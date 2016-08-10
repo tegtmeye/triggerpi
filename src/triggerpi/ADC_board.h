@@ -11,6 +11,7 @@
 #include <tuple>
 #include <functional>
 #include <cstdint>
+#include <ratio>
 
 namespace b = boost;
 namespace po = boost::program_options;
@@ -81,6 +82,13 @@ class ADC_board {
 
     // number of active channels that have been configured
     virtual std::uint32_t enabled_channels(void) const = 0;
+
+    // if returns true, then each column will include the time each sample
+    // was taken relative to the start trigger in std::nanoseconds. This
+    // includes the size needed to store this value. ie
+    // sizeof(std::chrono::nanoseconds::rep). Endian is native.
+    virtual bool sample_time_prefix(void) const = 0;
+
 
     // This function is called prior to calling \c setup_com. If this
     // function returns true, then no further calls will be made to this

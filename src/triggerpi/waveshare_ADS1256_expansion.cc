@@ -335,9 +335,8 @@ void write_to_registers(uint8_t reg_start, char *data, uint8_t num)
 
 
 waveshare_ADS1256::waveshare_ADS1256(const po::variables_map &vm)
- :ADC_board(vm), _disabled(false),
-  sample_rate(detail::validate_translate_sample_rate(vm)),
-  used_pins(9,0)
+ :ADC_board(vm), sample_rate(detail::validate_translate_sample_rate(vm)),
+  used_pins(9,0), _disabled(false), _sample_time_prefix(true)
 {
   std::tie(_gain_code,_gain) = detail::validate_translate_gain(vm);
 }
@@ -537,76 +536,10 @@ void waveshare_ADS1256::trigger_sampling(
 
 void waveshare_ADS1256::trigger_sampling(const data_handler &handler)
 {
-  sample_buffer_type sample_buffer(
-    row_block*channel_assignment.size()*bit_depth());
-
-  if(!prepped_initial_channel) {
-    // set the MUX to the first channel so that the conversion will be the
-    // first one read. After a sampling cycle has taken place, the ADC will
-    // already have the correct channel loaded in MUX
-    detail::wait_DRDY();
-
-    // switch to the first channel
-    detail::write_to_registers(REG_MUX,&(channel_assignment[0]),1);
-    bcm2835_delayMicroseconds(5);
-
-    CS_0();
-    bcm2835_spi_transfer(CMD_SYNC);
-    CS_1();
-    bcm2835_delayMicroseconds(5);
-
-    CS_0();
-    bcm2835_spi_transfer(CMD_WAKEUP);
-    CS_1();
-    bcm2835_delayMicroseconds(25);
-
-    // wait?
-    CS_0();
-    bcm2835_spi_transfer(CMD_RDATA);
-    bcm2835_delayMicroseconds(10);
-
-    //don't actually read the data yet
-    prepped_initial_channel = true;
-  }
-
-  bool done = false;
-  while(!done) {
-    // cycling through the channels is done with a one cycle lag. That is,
-    // while we are pulling the converted data off of the ADC's register, we
-    // have already switched the conversion hardware to the next channel so that
-    // off it can be settling down while we are in the process of pulling the
-    // data for the previous conversion. See the datasheet pg. 21
-    std::size_t channels = channel_assignment.size();
-    for(std::size_t idx = 0; idx < sample_buffer.size(); idx+=bit_depth()) {
-      detail::wait_DRDY();
-
-      // switch to the next channel
-      detail::write_to_registers(REG_MUX,
-        &(channel_assignment[(idx+1)%channels]),1);
-      bcm2835_delayMicroseconds(5);
-
-      CS_0();
-      bcm2835_spi_transfer(CMD_SYNC);
-      CS_1();
-      bcm2835_delayMicroseconds(5);
-
-      CS_0();
-      bcm2835_spi_transfer(CMD_WAKEUP);
-      CS_1();
-      bcm2835_delayMicroseconds(25);
-
-      CS_0();
-      bcm2835_spi_transfer(CMD_RDATA);
-      bcm2835_delayMicroseconds(10);
-
-      bcm2835_spi_transfern(sample_buffer.data()+idx,3);
-      CS_1();
-    }
-
-    done = handler(sample_buffer.data(),row_block,*this);
-  }
-
-  prepped_initial_channel = false;
+  if(_sample_time_prefix)
+    trigger_sampling_wstat_impl(handler);
+  else
+    trigger_sampling_impl(handler);
 }
 
 
@@ -648,34 +581,29 @@ void waveshare_ADS1256::trigger_sampling_async(const data_handler &handler)
     std::cref(handler), std::ref(done));
 
 
-  if(!prepped_initial_channel) {
-    // set the MUX to the first channel so that the conversion will be the
-    // first one read. After a sampling cycle has taken place, the ADC will
-    // already have the correct channel loaded in MUX
-    detail::wait_DRDY();
+  // set the MUX to the first channel so that the conversion will be the
+  // first one read. After a sampling cycle has taken place, the ADC will
+  // already have the correct channel loaded in MUX
+  detail::wait_DRDY();
 
-    // switch to the first channel
-    detail::write_to_registers(REG_MUX,&(channel_assignment[0]),1);
-    bcm2835_delayMicroseconds(5);
+  // switch to the first channel
+  detail::write_to_registers(REG_MUX,&(channel_assignment[0]),1);
+  bcm2835_delayMicroseconds(5);
 
-    CS_0();
-    bcm2835_spi_transfer(CMD_SYNC);
-    CS_1();
-    bcm2835_delayMicroseconds(5);
+  CS_0();
+  bcm2835_spi_transfer(CMD_SYNC);
+  CS_1();
+  bcm2835_delayMicroseconds(5);
 
-    CS_0();
-    bcm2835_spi_transfer(CMD_WAKEUP);
-    CS_1();
-    bcm2835_delayMicroseconds(25);
+  CS_0();
+  bcm2835_spi_transfer(CMD_WAKEUP);
+  CS_1();
+  bcm2835_delayMicroseconds(25);
 
-    // wait?
-    CS_0();
-    bcm2835_spi_transfer(CMD_RDATA);
-    bcm2835_delayMicroseconds(10);
-
-    //don't actually read the data yet
-    prepped_initial_channel = true;
-  }
+  // wait?
+  CS_0();
+  bcm2835_spi_transfer(CMD_RDATA);
+  bcm2835_delayMicroseconds(10);
 
   sample_buffer_ptr sample_buffer;
   while(!done) {
@@ -721,55 +649,8 @@ void waveshare_ADS1256::trigger_sampling_async(const data_handler &handler)
     ready_ringbuffer.push(sample_buffer);
   }
 
-  prepped_initial_channel = false;
-
   servicing_thread.join();
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// void waveshare_ADS1256::trigger_psampling(
-//   ringbuffer_type &allocation_ringbuffer, ringbuffer_type &data_ringbuffer)
-// {
-//   while(true) {
-//     if(!allocation_ringbuffer.read_available()) {
-//       std::cerr << "Warning, no buffers available for writing. Ignoring data "
-//         "for this time slice!\n";
-//       sleep(1); // use thread sleep
-//     }
-//
-//     aquired_data_sink_ptr data_sink;
-//     allocation_ringbuffer.pop(data_sink);
-//
-//     uint8_t *buf = data_sink.allocate();
-//
-//
-//
-//
-//
-//     // fill handler
-//     data_ringbuffer.push(handler_ptr);
-//   }
-//
-// }
-
-
-
-
-
-
 
 
 void waveshare_ADS1256::validate_assign_channel(const std::string config_str)
@@ -851,6 +732,155 @@ void waveshare_ADS1256::validate_assign_channel(const std::string config_str)
   channel_assignment.push_back(MUX);
   used_pins.at(pinA) = true;
   used_pins.at(pinB) = true;
+}
+
+void waveshare_ADS1256::trigger_sampling_impl(const data_handler &handler)
+{
+  sample_buffer_type sample_buffer(
+    row_block*channel_assignment.size()*bit_depth());
+
+  // set the MUX to the first channel so that the conversion will be the
+  // first one read. After a sampling cycle has taken place, the ADC will
+  // already have the correct channel loaded in MUX
+  detail::wait_DRDY();
+
+  // switch to the first channel
+  detail::write_to_registers(REG_MUX,&(channel_assignment[0]),1);
+  bcm2835_delayMicroseconds(5);
+
+  CS_0();
+  bcm2835_spi_transfer(CMD_SYNC);
+  CS_1();
+  bcm2835_delayMicroseconds(5);
+
+  CS_0();
+  bcm2835_spi_transfer(CMD_WAKEUP);
+  CS_1();
+  bcm2835_delayMicroseconds(25);
+
+  // wait?
+  CS_0();
+  bcm2835_spi_transfer(CMD_RDATA);
+  bcm2835_delayMicroseconds(10);
+
+  bool done = false;
+  while(!done) {
+    // cycling through the channels is done with a one cycle lag. That is,
+    // while we are pulling the converted data off of the ADC's register, we
+    // have already switched the conversion hardware to the next channel so that
+    // off it can be settling down while we are in the process of pulling the
+    // data for the previous conversion. See the datasheet pg. 21
+    std::size_t channels = channel_assignment.size();
+    for(std::size_t idx = 0; idx < sample_buffer.size(); idx+=bit_depth()) {
+      detail::wait_DRDY();
+
+      // switch to the next channel
+      detail::write_to_registers(REG_MUX,
+        &(channel_assignment[(idx+1)%channels]),1);
+      bcm2835_delayMicroseconds(5);
+
+      CS_0();
+      bcm2835_spi_transfer(CMD_SYNC);
+      CS_1();
+      bcm2835_delayMicroseconds(5);
+
+      CS_0();
+      bcm2835_spi_transfer(CMD_WAKEUP);
+      CS_1();
+      bcm2835_delayMicroseconds(25);
+
+      CS_0();
+      bcm2835_spi_transfer(CMD_RDATA);
+      bcm2835_delayMicroseconds(10);
+
+      bcm2835_spi_transfern(sample_buffer.data()+idx,3);
+      CS_1();
+    }
+
+    done = handler(sample_buffer.data(),row_block,*this);
+  }
+}
+
+void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler)
+{
+  sample_buffer_type sample_buffer(
+    row_block*channel_assignment.size()*bit_depth());
+
+  std::chrono::high_resolution_clock::time_point start =
+    std::chrono::high_resolution_clock::now();
+
+
+  // set the MUX to the first channel so that the conversion will be the
+  // first one read. After a sampling cycle has taken place, the ADC will
+  // already have the correct channel loaded in MUX
+  detail::wait_DRDY();
+
+  // switch to the first channel
+  detail::write_to_registers(REG_MUX,&(channel_assignment[0]),1);
+  bcm2835_delayMicroseconds(5);
+
+  CS_0();
+  bcm2835_spi_transfer(CMD_SYNC);
+  CS_1();
+  bcm2835_delayMicroseconds(5);
+
+  CS_0();
+  bcm2835_spi_transfer(CMD_WAKEUP);
+  CS_1();
+  bcm2835_delayMicroseconds(25);
+
+  // wait?
+  CS_0();
+  //don't actually read the data yet
+  bcm2835_spi_transfer(CMD_RDATA);
+  bcm2835_delayMicroseconds(10);
+  CS_1();
+
+  bool done = false;
+  while(!done) {
+    // cycling through the channels is done with a one cycle lag. That is,
+    // while we are pulling the converted data off of the ADC's register, we
+    // have already switched the conversion hardware to the next channel so that
+    // off it can be settling down while we are in the process of pulling the
+    // data for the previous conversion. See the datasheet pg. 21
+    std::size_t channels = channel_assignment.size();
+    std::size_t step = bit_depth()+sizeof(std::chrono::nanoseconds::rep);
+    for(std::size_t idx = 0; idx < sample_buffer.size(); idx+=step) {
+      detail::wait_DRDY();
+
+      // switch to the next channel
+      detail::write_to_registers(REG_MUX,
+        &(channel_assignment[(idx+1)%channels]),1);
+      bcm2835_delayMicroseconds(5);
+
+      CS_0();
+      bcm2835_spi_transfer(CMD_SYNC);
+      CS_1();
+      bcm2835_delayMicroseconds(5);
+
+      CS_0();
+      bcm2835_spi_transfer(CMD_WAKEUP);
+      CS_1();
+      bcm2835_delayMicroseconds(25);
+
+      CS_0();
+      bcm2835_spi_transfer(CMD_RDATA);
+      bcm2835_delayMicroseconds(10);
+
+      bcm2835_spi_transfern(sample_buffer.data()+idx,3);
+      CS_1();
+
+      std::chrono::high_resolution_clock::time_point now =
+        std::chrono::high_resolution_clock::now();
+
+      void *loc = sample_buffer.data()+idx+3;
+      *static_cast<std::chrono::nanoseconds::rep*>(loc) =
+        std::chrono::duration_cast<std::chrono::nanoseconds>
+          (now - start).count();
+    }
+
+    done = handler(sample_buffer.data(),row_block,*this);
+  }
 }
 
 

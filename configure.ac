@@ -7,6 +7,9 @@ AC_CANONICAL_SYSTEM
 AM_INIT_AUTOMAKE([foreign tar-pax])
 AC_CONFIG_MACRO_DIR([m4])
 
+# early checks
+AC_C_BIGENDIAN
+
 # Checks for programs.
 
 AC_PROG_CC

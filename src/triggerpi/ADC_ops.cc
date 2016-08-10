@@ -13,9 +13,9 @@
 
 namespace po = boost::program_options;
 
-
-
-
+#ifndef WORDS_BIGENDIAN
+#define WORDS_BIGENDIAN 0
+#endif
 
 template<typename T>
 struct screen_printer {
@@ -43,9 +43,90 @@ struct screen_printer {
   double _sensitivity;
 };
 
-bool file_printer(void *data, std::size_t rows, const ADC_board &adc_board)
+#if 0
+template <be::order Order, class T, std::size_t Nbits>
+bool file_printer(void *_data, std::size_t num_rows, const ADC_board &adc_board)
 {
-  std::cerr << "Got " << rows << "rows\n";
+  static const std::size_t Nbytes = Nbits/8;
+
+  char *data = static_cast<char *>(_data);
+
+  if(adc_board.sample_time_prefix()) {
+    for(std::size_t row=0; row<num_rows; ++row) {
+      for(std::size_t col=0; col<adc_board.enabled_channels(); ++col) {
+        // deserialize data
+        be::endian_buffer<Order,T,Nbits> raw_adc_counts;
+        std::memcpy(&raw_adc_counts,data,Nbytes);
+        T adc_counts = raw_adc_counts.value();
+
+        data += Nbytes;
+
+        std::chrono::nanoseconds::rep elapsed;
+        std::memcpy(&elapsed,data+Nbytes,sizeof(std::chrono::nanoseconds::rep));
+        data += sizeof(std::chrono::nanoseconds::rep);
+
+        std::cout << " " << adc_counts << "(" << elapsed << " ns)";
+      }
+      std::cout << std::endl;
+    }
+  }
+  else {
+
+  }
+
+  printf("\033[2J");
+  return false;
+}
+#endif
+
+
+template<typename NativeT, bool ADCBigEndian, std::size_t NBytes>
+bool file_printer(void *_data, std::size_t num_rows, const ADC_board &adc_board)
+{
+  static_assert(sizeof(NativeT) >= NBytes,
+    "Native type must be larger then NBytes");
+
+  char *data = static_cast<char *>(_data);
+
+  if(adc_board.sample_time_prefix()) {
+    for(std::size_t row=0; row<num_rows; ++row) {
+      for(std::size_t col=0; col<adc_board.enabled_channels(); ++col) {
+        // deserialize data
+        union {
+          char buff[sizeof(NativeT)];
+          NativeT adc_counts = 0;
+        };
+
+        // compiler should pick one
+        if(ADCBigEndian && WORDS_BIGENDIAN) {
+          std::copy(data,data+NBytes,buff+(sizeof(NativeT)-NBytes));
+        }
+        else if(ADCBigEndian && !WORDS_BIGENDIAN) {
+          std::reverse_copy(data,data+NBytes,buff);
+        }
+        else if(!ADCBigEndian && WORDS_BIGENDIAN) {
+          std::reverse_copy(data,data+NBytes,buff+(sizeof(NativeT)-NBytes));
+        }
+        else { // !ADCBigEndian && !WORDS_BIGENDIAN
+          std::copy(data,data+NBytes,buff);
+        }
+
+        data += NBytes;
+
+        std::chrono::nanoseconds::rep elapsed;
+        std::memcpy(&elapsed,data+NBytes,sizeof(std::chrono::nanoseconds::rep));
+        data += sizeof(std::chrono::nanoseconds::rep);
+
+        std::cout << " " << adc_counts << "(" << elapsed << " ns)";
+      }
+      std::cout << std::endl;
+    }
+  }
+  else {
+
+  }
+
+  printf("\033[2J");
   return false;
 }
 
@@ -110,7 +191,7 @@ std::shared_ptr<ADC_board> enable_adc(const po::variables_map &vm)
   adc_board->setup_com();
   adc_board->initialize();
 
-  adc_board->trigger_sampling(file_printer);
+  adc_board->trigger_sampling(file_printer<std::int32_t,true,3>);
 
 ////   sensitivity is 1/(2^23-1) * FSRn/(FSRd * gain) * ADC_count
 //    ADC_board::rational_type rational_sens = adc_board->sensitivity();
