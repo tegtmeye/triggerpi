@@ -616,12 +616,10 @@ void waveshare_ADS1256::async_handler(ringbuffer_type &allocation_ringbuffer,
 {
   static const std::chrono::milliseconds nap(100);
 
+  sample_buffer_ptr sample_buffer;
   while(!done) {
-    while(!ready_ringbuffer.read_available())
+    while(!ready_ringbuffer.pop(sample_buffer))
       std::this_thread::sleep_for(nap);
-
-    sample_buffer_ptr sample_buffer;
-    ready_ringbuffer.pop(sample_buffer);
 
     done = handler(sample_buffer->data(),row_block,*this);
 
@@ -679,16 +677,14 @@ void waveshare_ADS1256::trigger_sampling_async(const data_handler &handler)
     prepped_initial_channel = true;
   }
 
+  sample_buffer_ptr sample_buffer;
   while(!done) {
     // get the next data_block
-    while(!allocation_ringbuffer.read_available()) {
+    while(!allocation_ringbuffer.pop(sample_buffer)) {
       std::cerr << "Warning, no buffers available for writing. Ignoring data "
         "for this time slice!\n";
       std::this_thread::sleep_for(nap);
     }
-
-    sample_buffer_ptr sample_buffer;
-    allocation_ringbuffer.pop(sample_buffer);
 
     // cycling through the channels is done with a one cycle lag. That is,
     // while we are pulling the converted data off of the ADC's register, we
