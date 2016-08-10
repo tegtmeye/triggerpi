@@ -4,6 +4,7 @@
 
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
+#include <boost/endian/buffers.hpp>
 
 #include <tuple>
 #include <cstdint>
@@ -75,6 +76,7 @@ bool file_printer(void *_data, std::size_t num_rows, const ADC_board &adc_board)
   }
 
   printf("\033[2J");
+
   return false;
 }
 #endif
@@ -127,6 +129,7 @@ bool file_printer(void *_data, std::size_t num_rows, const ADC_board &adc_board)
   }
 
   printf("\033[2J");
+
   return false;
 }
 
