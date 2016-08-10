@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <memory>
 #include <cstdio>
+#include <iostream>
 
 namespace po = boost::program_options;
 
@@ -41,6 +42,13 @@ struct screen_printer {
 
   double _sensitivity;
 };
+
+bool file_printer(void *data, std::size_t rows, const ADC_board &adc_board)
+{
+  std::cerr << "Got " << rows << "rows\n";
+  return false;
+}
+
 
 // struct file_printer {
 //   file_printer(const std::shared_ptr<ADC_board> &_adc_board,
@@ -101,6 +109,8 @@ std::shared_ptr<ADC_board> enable_adc(const po::variables_map &vm)
 
   adc_board->setup_com();
   adc_board->initialize();
+
+  adc_board->trigger_sampling(file_printer);
 
 ////   sensitivity is 1/(2^23-1) * FSRn/(FSRd * gain) * ADC_count
 //    ADC_board::rational_type rational_sens = adc_board->sensitivity();
