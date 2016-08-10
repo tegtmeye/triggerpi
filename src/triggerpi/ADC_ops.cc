@@ -98,19 +98,22 @@ bool file_printer(void *_data, std::size_t num_rows, const ADC_board &adc_board)
           NativeT adc_counts = 0;
         };
 
-NEED TO EXTEND THE SIGNBIT!
         // compiler should pick one
         if(ADCBigEndian && WORDS_BIGENDIAN) {
-          std::copy(data,data+NBytes,buff+(sizeof(NativeT)-NBytes));
+          std::copy(data,data+NBytes,buff);
+          adc_counts >>= ((sizeof(NativeT)-NBytes)*8);
         }
         else if(ADCBigEndian && !WORDS_BIGENDIAN) {
-          std::reverse_copy(data,data+NBytes,buff);
+          std::reverse_copy(data,data+NBytes,buff+(sizeof(NativeT)-NBytes));
+          adc_counts <<= ((sizeof(NativeT)-NBytes)*8);
         }
         else if(!ADCBigEndian && WORDS_BIGENDIAN) {
-          std::reverse_copy(data,data+NBytes,buff+(sizeof(NativeT)-NBytes));
+          std::reverse_copy(data,data+NBytes,buff);
+          adc_counts >>= ((sizeof(NativeT)-NBytes)*8);
         }
         else { // !ADCBigEndian && !WORDS_BIGENDIAN
-          std::copy(data,data+NBytes,buff);
+          std::copy(data,data+NBytes,buff+(sizeof(NativeT)-NBytes));
+          adc_counts <<= ((sizeof(NativeT)-NBytes)*8);
         }
 
         data += NBytes;
