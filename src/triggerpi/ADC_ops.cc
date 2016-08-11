@@ -91,7 +91,7 @@ bool file_printer(void *_data, std::size_t num_rows, const ADC_board &adc_board)
   NativeT adc_counts = 0;
 
   char *data = static_cast<char *>(_data);
-  char *raw_adc_count = reinterpret_cast<char *>(adc_counts);
+  char *raw_adc_count = reinterpret_cast<char *>(&adc_counts);
 
   if(adc_board.sample_time_prefix()) {
     for(std::size_t row=0; row<num_rows; ++row) {
