@@ -119,11 +119,10 @@ bool file_printer(void *_data, std::size_t num_rows, const ADC_board &adc_board)
         data += NBytes;
 
         std::chrono::nanoseconds::rep elapsed;
-        std::memcpy(&elapsed,data+NBytes,sizeof(std::chrono::nanoseconds::rep));
+        std::memcpy(&elapsed,data,sizeof(std::chrono::nanoseconds::rep));
         data += sizeof(std::chrono::nanoseconds::rep);
 
         std::printf(" %010i(0x%08X)[%lld ns]",adc_counts,adc_counts,elapsed);
-	//        std::cout << " " << adc_counts << "(" << elapsed << " ns)";
       }
       std::printf("\n");
     }

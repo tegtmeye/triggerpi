@@ -803,8 +803,10 @@ void waveshare_ADS1256::trigger_sampling_impl(const data_handler &handler)
 
 void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler)
 {
+  static const std::size_t time_size = sizeof(std::chrono::nanoseconds::rep);
+  
   sample_buffer_type sample_buffer(
-    row_block*channel_assignment.size()*bit_depth());
+    row_block*channel_assignment.size()*(bit_depth()/8+time_size));
 
   std::chrono::high_resolution_clock::time_point start =
     std::chrono::high_resolution_clock::now();
@@ -844,7 +846,7 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler)
     // off it can be settling down while we are in the process of pulling the
     // data for the previous conversion. See the datasheet pg. 21
     std::size_t channels = channel_assignment.size();
-    std::size_t step = bit_depth()+sizeof(std::chrono::nanoseconds::rep);
+    std::size_t step = bit_depth()/8+time_size;
     for(std::size_t idx = 0; idx < sample_buffer.size(); idx+=step) {
       detail::wait_DRDY();
 
@@ -873,10 +875,9 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler)
       std::chrono::high_resolution_clock::time_point now =
         std::chrono::high_resolution_clock::now();
 
-//      void *loc = sample_buffer.data()+idx+3;
       std::chrono::nanoseconds::rep elapsed =
         std::chrono::duration_cast<std::chrono::nanoseconds>(now-start).count();
-      std::memcpy(sample_buffer.data()+idx+3,&elapsed,sizeof(elapsed));
+      std::memcpy(sample_buffer.data()+idx+3,&elapsed,time_size);
 
 //       *static_cast<std::chrono::nanoseconds::rep*>(loc) =
 //         std::chrono::duration_cast<std::chrono::nanoseconds>

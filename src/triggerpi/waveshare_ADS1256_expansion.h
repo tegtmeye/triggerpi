@@ -50,7 +50,7 @@ class waveshare_ADS1256 :public ADC_board {
     typedef std::shared_ptr<sample_buffer_type> sample_buffer_ptr;
     typedef b::lockfree::spsc_queue<sample_buffer_ptr> ringbuffer_type;
 
-    static const std::size_t row_block = 1;
+    static const std::size_t row_block = 2;
 
     unsigned char sample_rate;
     unsigned char _gain_code;
