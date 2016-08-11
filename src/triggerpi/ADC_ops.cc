@@ -88,32 +88,33 @@ bool file_printer(void *_data, std::size_t num_rows, const ADC_board &adc_board)
   static_assert(sizeof(NativeT) >= NBytes,
     "Native type must be larger then NBytes");
 
+  NativeT adc_counts = 0;
+
   char *data = static_cast<char *>(_data);
+  char *raw_adc_count = reinterpret_cast<char *>(adc_counts);
 
   if(adc_board.sample_time_prefix()) {
     for(std::size_t row=0; row<num_rows; ++row) {
       for(std::size_t col=0; col<adc_board.enabled_channels(); ++col) {
         // deserialize data
-        union {
-          char buff[sizeof(NativeT)];
-          NativeT adc_counts = 0;
-        };
+        NativeT adc_counts = 0;
 
         // compiler should pick one
         if(ADCBigEndian && WORDS_BIGENDIAN) {
-          std::copy(data,data+NBytes,buff);
+          std::copy(data,data+NBytes,raw_adc_count);
           adc_counts >>= ((sizeof(NativeT)-NBytes)*8);
         }
         else if(ADCBigEndian && !WORDS_BIGENDIAN) {
-          std::reverse_copy(data,data+NBytes,buff+(sizeof(NativeT)-NBytes));
+          std::reverse_copy(data,data+NBytes,
+            raw_adc_count+(sizeof(NativeT)-NBytes));
           adc_counts >>= ((sizeof(NativeT)-NBytes)*8);
         }
         else if(!ADCBigEndian && WORDS_BIGENDIAN) {
-          std::reverse_copy(data,data+NBytes,buff);
+          std::reverse_copy(data,data+NBytes,raw_adc_count);
           adc_counts >>= ((sizeof(NativeT)-NBytes)*8);
         }
         else { // !ADCBigEndian && !WORDS_BIGENDIAN
-          std::copy(data,data+NBytes,buff+(sizeof(NativeT)-NBytes));
+          std::copy(data,data+NBytes,raw_adc_count+(sizeof(NativeT)-NBytes));
           adc_counts >>= ((sizeof(NativeT)-NBytes)*8);
         }
 

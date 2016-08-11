@@ -873,10 +873,14 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler)
       std::chrono::high_resolution_clock::time_point now =
         std::chrono::high_resolution_clock::now();
 
-      void *loc = sample_buffer.data()+idx+3;
-      *static_cast<std::chrono::nanoseconds::rep*>(loc) =
-        std::chrono::duration_cast<std::chrono::nanoseconds>
-          (now - start).count();
+//      void *loc = sample_buffer.data()+idx+3;
+      std::chrono::nanoseconds::rep elapsed =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(now-start).count();
+      std::memcpy(sample_buffer.data()+idx+3,&elapsed,sizeof(elapsed));
+
+//       *static_cast<std::chrono::nanoseconds::rep*>(loc) =
+//         std::chrono::duration_cast<std::chrono::nanoseconds>
+//           (now - start).count();
     }
 
     done = handler(sample_buffer.data(),row_block,*this);
