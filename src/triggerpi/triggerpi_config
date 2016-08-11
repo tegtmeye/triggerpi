@@ -46,8 +46,5 @@
   # In any combination.
   channel=0,COM
 
-  channel=1,COM
-
-  channel=2,3
 
 

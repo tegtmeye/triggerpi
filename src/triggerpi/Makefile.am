@@ -16,6 +16,7 @@ additional_libs= \
         $(BOOST_PROGRAM_OPTIONS_LIBS)
 
 additional_ldflags= \
+	-lpthread \
 	$(BCM2835_LDFLAGS) \
         $(BOOST_LDFLAGS) \
         $(BOOST_REGEX_LDFLAGS) \

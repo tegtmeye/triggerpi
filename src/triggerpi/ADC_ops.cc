@@ -10,6 +10,7 @@
 #include <memory>
 #include <cstdio>
 #include <iostream>
+#include <chrono>
 
 namespace po = boost::program_options;
 
@@ -105,7 +106,7 @@ bool file_printer(void *_data, std::size_t num_rows, const ADC_board &adc_board)
         }
         else if(ADCBigEndian && !WORDS_BIGENDIAN) {
           std::reverse_copy(data,data+NBytes,buff+(sizeof(NativeT)-NBytes));
-          adc_counts <<= ((sizeof(NativeT)-NBytes)*8);
+          adc_counts >>= ((sizeof(NativeT)-NBytes)*8);
         }
         else if(!ADCBigEndian && WORDS_BIGENDIAN) {
           std::reverse_copy(data,data+NBytes,buff);
@@ -113,7 +114,7 @@ bool file_printer(void *_data, std::size_t num_rows, const ADC_board &adc_board)
         }
         else { // !ADCBigEndian && !WORDS_BIGENDIAN
           std::copy(data,data+NBytes,buff+(sizeof(NativeT)-NBytes));
-          adc_counts <<= ((sizeof(NativeT)-NBytes)*8);
+          adc_counts >>= ((sizeof(NativeT)-NBytes)*8);
         }
 
         data += NBytes;
@@ -122,9 +123,10 @@ bool file_printer(void *_data, std::size_t num_rows, const ADC_board &adc_board)
         std::memcpy(&elapsed,data+NBytes,sizeof(std::chrono::nanoseconds::rep));
         data += sizeof(std::chrono::nanoseconds::rep);
 
-        std::cout << " " << adc_counts << "(" << elapsed << " ns)";
+        std::printf(" %010i(0x%08X)[%lld ns]",adc_counts,adc_counts,elapsed);
+	//        std::cout << " " << adc_counts << "(" << elapsed << " ns)";
       }
-      std::cout << std::endl;
+      std::printf("\n");
     }
   }
   else {
