@@ -1,3 +1,5 @@
+#include <config.h>
+
 #include "ADC_ops.h"
 #include "ADC_board.h"
 #include "waveshare_ADS1256_expansion.h"
@@ -15,7 +17,7 @@
 namespace po = boost::program_options;
 
 #ifndef WORDS_BIGENDIAN
-#define WORDS_BIGENDIAN 0
+#error missing endian information
 #endif
 
 template<typename T>
@@ -120,6 +122,12 @@ bool file_printer(void *_data, std::size_t num_rows, const ADC_board &adc_board)
 
         std::chrono::nanoseconds::rep elapsed;
         std::memcpy(&elapsed,data,sizeof(std::chrono::nanoseconds::rep));
+
+        if(ADCBigEndian)
+          elapsed = be_to_native(elapsed);
+        else
+          elapsed = le_to_native(elapsed);
+
         data += sizeof(std::chrono::nanoseconds::rep);
 
         std::printf(" %010i(0x%08X)[%lld ns]",adc_counts,adc_counts,elapsed);

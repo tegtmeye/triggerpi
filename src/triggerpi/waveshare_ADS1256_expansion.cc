@@ -1,6 +1,4 @@
-/*
-    Setup the SPI interface using the bcm2835 library
- */
+#include <config.h>
 
 #include "waveshare_ADS1256_expansion.h"
 
@@ -21,6 +19,10 @@
 #include <chrono>
 #include <thread>
 #include <functional>
+
+#ifndef WORDS_BIGENDIAN
+#error missing endian information
+#endif
 
 //CS    -----   SPICS
 //DIN   -----   MOSI
@@ -804,7 +806,7 @@ void waveshare_ADS1256::trigger_sampling_impl(const data_handler &handler)
 void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler)
 {
   static const std::size_t time_size = sizeof(std::chrono::nanoseconds::rep);
-  
+
   sample_buffer_type sample_buffer(
     row_block*channel_assignment.size()*(bit_depth()/8+time_size));
 
@@ -877,7 +879,11 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler)
 
       std::chrono::nanoseconds::rep elapsed =
         std::chrono::duration_cast<std::chrono::nanoseconds>(now-start).count();
+
+      elapsed = ensure_be(elapsed);
       std::memcpy(sample_buffer.data()+idx+3,&elapsed,time_size);
+
+
 
 //       *static_cast<std::chrono::nanoseconds::rep*>(loc) =
 //         std::chrono::duration_cast<std::chrono::nanoseconds>

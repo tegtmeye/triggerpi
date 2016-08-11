@@ -8,7 +8,10 @@ AM_INIT_AUTOMAKE([foreign tar-pax])
 AC_CONFIG_MACRO_DIR([m4])
 
 # early checks
-AC_C_BIGENDIAN
+AC_C_BIGENDIAN(
+	[AC_DEFINE([WORDS_BIGENDIAN],[1],"Big endian architecture")],
+	[AC_DEFINE([WORDS_BIGENDIAN],[0],"Little endian architecture")],
+	[AC_MSG_ERROR([Unknown architecture endian])])
 
 # Checks for programs.
 
