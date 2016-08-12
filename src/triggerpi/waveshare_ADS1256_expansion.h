@@ -139,7 +139,7 @@ waveshare_ADS1256::screen_printer(void) const
 inline waveshare_ADS1256::data_handler
 waveshare_ADS1256::file_printer(const fs::path &loc) const
 {
-  return file_printer_type(loc);
+  return file_printer_type(loc,enabled_channels());
 }
 
 inline waveshare_ADS1256::data_handler

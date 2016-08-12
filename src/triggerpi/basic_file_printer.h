@@ -26,7 +26,8 @@ namespace fs = boost::filesystem;
  */
 template<typename NativeT, bool ADCBigEndian, std::size_t NBytes>
 struct basic_file_printer {
-  basic_file_printer(const fs::path &loc) :out(new fs::ofstream(loc)) {}
+  basic_file_printer(const fs::path &loc, std::size_t enabled_channels)
+    :diff(enabled_channels), out(new fs::ofstream(loc)) {}
 
   bool operator()(void *_data, std::size_t num_rows, const ADC_board &adc_board)
   {
@@ -78,12 +79,10 @@ struct basic_file_printer {
 
           *out
             << std::hex << "0x" << std::setw(8) << std::setfill('0')
-	    << adc_counts << ", "
+        	    << adc_counts << ", "
             << std::dec << std::setw(8) << std::noshowbase << adc_counts
-              << ", " << std::setw(0) << elapsed;
-
-
-//        std::printf(" %010i(0x%08X)[%lld ns]",adc_counts,adc_counts,elapsed);
+              << ", " << std::setw(0) << elapsed << ", " << (elapsed-diff[col]);
+          diff[col] = elapsed;
         }
 
         *out << "\n";
@@ -96,6 +95,7 @@ struct basic_file_printer {
     return false;
   }
 
+  std::vector<std::chrono::nanoseconds::rep> diff;
   std::shared_ptr<fs::ofstream> out;
 };
 
