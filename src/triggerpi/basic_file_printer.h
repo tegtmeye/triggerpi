@@ -12,6 +12,7 @@
 #include <chrono>
 #include <cstdio>
 #include <memory>
+#include <iomanip>
 
 #ifndef WORDS_BIGENDIAN
 #error missing endian information
@@ -72,12 +73,12 @@ struct basic_file_printer {
 
           data += sizeof(std::chrono::nanoseconds::rep);
 
-          if(!col)
+          if(col)
             *out << ", ";
 
           *out
-            << std::hex << std::setw(8) << std::setfill('0') << std::showbase
-              << adc_counts << ", "
+            << std::hex << "0x" << std::setw(8) << std::setfill('0')
+	    << adc_counts << ", "
             << std::dec << std::setw(8) << std::noshowbase << adc_counts
               << ", " << std::setw(0) << elapsed;
 
@@ -85,7 +86,7 @@ struct basic_file_printer {
 //        std::printf(" %010i(0x%08X)[%lld ns]",adc_counts,adc_counts,elapsed);
         }
 
-        *out << std::ends;
+        *out << "\n";
       }
     }
     else {
