@@ -13,174 +13,21 @@
 #include <cstdio>
 #include <iostream>
 #include <chrono>
+#include <fstream>
+#include <cstring>
+#include <cerrno>
 
 namespace po = boost::program_options;
-
-#ifndef WORDS_BIGENDIAN
-#error missing endian information
-#endif
-
-template<typename T>
-struct screen_printer {
-  screen_printer(double val) :_sensitivity(val) {}
-
-  bool operator()(void *_data, std::size_t channels, std::size_t samples)
-  {
-    T *data = reinterpret_cast<T*>(_data);
-
-    std::size_t idx = 0;
-    for(std::size_t i=0; i<samples; ++i) {
-      for(std::size_t j=0; j<channels; ++j) {
-        std::printf(" %010i(0x%08X)[%04f]",data[idx],data[idx],
-          data[idx]*_sensitivity);
-        ++idx;
-      }
-      std::printf("\n");
-    }
-
-    printf("\033[2J");
-
-    return false;
-  }
-
-  double _sensitivity;
-};
-
-#if 0
-template <be::order Order, class T, std::size_t Nbits>
-bool file_printer(void *_data, std::size_t num_rows, const ADC_board &adc_board)
-{
-  static const std::size_t Nbytes = Nbits/8;
-
-  char *data = static_cast<char *>(_data);
-
-  if(adc_board.sample_time_prefix()) {
-    for(std::size_t row=0; row<num_rows; ++row) {
-      for(std::size_t col=0; col<adc_board.enabled_channels(); ++col) {
-        // deserialize data
-        be::endian_buffer<Order,T,Nbits> raw_adc_counts;
-        std::memcpy(&raw_adc_counts,data,Nbytes);
-        T adc_counts = raw_adc_counts.value();
-
-        data += Nbytes;
-
-        std::chrono::nanoseconds::rep elapsed;
-        std::memcpy(&elapsed,data+Nbytes,sizeof(std::chrono::nanoseconds::rep));
-        data += sizeof(std::chrono::nanoseconds::rep);
-
-        std::cout << " " << adc_counts << "(" << elapsed << " ns)";
-      }
-      std::cout << std::endl;
-    }
-  }
-  else {
-
-  }
-
-  printf("\033[2J");
-
-  return false;
-}
-#endif
+namespace fs = boost::filesystem;
 
 
-template<typename NativeT, bool ADCBigEndian, std::size_t NBytes>
-bool file_printer(void *_data, std::size_t num_rows, const ADC_board &adc_board)
-{
-  static_assert(sizeof(NativeT) >= NBytes,
-    "Native type must be larger then NBytes");
-
-  char *data = static_cast<char *>(_data);
-
-  if(adc_board.sample_time_prefix()) {
-    for(std::size_t row=0; row<num_rows; ++row) {
-      for(std::size_t col=0; col<adc_board.enabled_channels(); ++col) {
-        // deserialize data
-        NativeT adc_counts = 0;
-        char *raw_adc_count = reinterpret_cast<char *>(&adc_counts);
-
-        // compiler should pick one
-        if(ADCBigEndian && WORDS_BIGENDIAN) {
-          std::copy(data,data+NBytes,raw_adc_count);
-          adc_counts >>= ((sizeof(NativeT)-NBytes)*8);
-        }
-        else if(ADCBigEndian && !WORDS_BIGENDIAN) {
-          std::reverse_copy(data,data+NBytes,
-            raw_adc_count+(sizeof(NativeT)-NBytes));
-          adc_counts >>= ((sizeof(NativeT)-NBytes)*8);
-        }
-        else if(!ADCBigEndian && WORDS_BIGENDIAN) {
-          std::reverse_copy(data,data+NBytes,raw_adc_count);
-          adc_counts >>= ((sizeof(NativeT)-NBytes)*8);
-        }
-        else { // !ADCBigEndian && !WORDS_BIGENDIAN
-          std::copy(data,data+NBytes,raw_adc_count+(sizeof(NativeT)-NBytes));
-          adc_counts >>= ((sizeof(NativeT)-NBytes)*8);
-        }
-
-        data += NBytes;
-
-        std::chrono::nanoseconds::rep elapsed;
-        std::memcpy(&elapsed,data,sizeof(std::chrono::nanoseconds::rep));
-
-        if(ADCBigEndian)
-          elapsed = be_to_native(elapsed);
-        else
-          elapsed = le_to_native(elapsed);
-
-        data += sizeof(std::chrono::nanoseconds::rep);
-
-        std::printf(" %010i(0x%08X)[%lld ns]",adc_counts,adc_counts,elapsed);
-      }
-      std::printf("\n");
-    }
-  }
-  else {
-
-  }
-
-  printf("\033[2J");
-
-  return false;
-}
 
 
-// struct file_printer {
-//   file_printer(const std::shared_ptr<ADC_board> &_adc_board,
-//     std::atomic<bool> &_done) :adc_board(_adc_board), done(_done) {}
-//
-//   void operator()(ADC_board::ringbuffer_type &_allocation_ringbuffer,
-//     ADC_board::ringbuffer_type &_data_ringbuffer)
-//   {
-//     while(!done.get()) {
-//       sleep(1);
-//     }
-//
-//
-// #if 0
-//     T *data = reinterpret_cast<T*>(_data);
-//
-//     std::size_t idx = 0;
-//     for(std::size_t i=0; i<samples; ++i) {
-//       for(std::size_t j=0; j<channels; ++j) {
-//         std::printf(" %010i(0x%08X)[%04f]",data[idx],data[idx],
-//           data[idx]*_sensitivity);
-//         ++idx;
-//       }
-//       std::printf("\n");
-//     }
-//
-//     printf("\033[2J");
-// #endif
-//
-//   }
-//
-//   std::shared_ptr<ADC_board> adc_board;
-//   std::reference_wrapper<std::atomic<bool> > done;
-// };
 
 
-std::shared_ptr<ADC_board> enable_adc(const po::variables_map &vm)
+
+
+void enable_adc(const po::variables_map &vm)
 {
   const std::string &adc_system = vm["ADC.system"].as<std::string>();
 
@@ -188,24 +35,61 @@ std::shared_ptr<ADC_board> enable_adc(const po::variables_map &vm)
 
   // waveshare ADS1256 expansion board is the only board supported at the
   // moment
-  if(adc_system == "waveshare")
+  if(adc_system == "waveshare") {
     adc_board.reset(new waveshare::waveshare_ADS1256(vm));
+  }
   else {
     std::stringstream err;
     err << "Unknown ADC board: '" << adc_system << "'";
     throw std::runtime_error(err.str());
   }
 
-
   adc_board->configure_options();
 
   if(adc_board->disabled())
-    return std::shared_ptr<ADC_board>(); // empty
+    return; // empty probably should output something
 
-  adc_board->setup_com();
-  adc_board->initialize();
 
-  adc_board->trigger_sampling(file_printer<std::int32_t,true,3>);
+  if(vm.count("output")) {
+    try {
+      ADC_board::data_handler hdlr =
+        adc_board->file_printer(fs::path(vm["output"].as<std::string>()));
+
+      if(!hdlr)
+        throw std::runtime_error("Unsupported output mode for this ADC board");
+
+      adc_board->setup_com();
+      adc_board->initialize();
+      adc_board->trigger_sampling(hdlr);
+    }
+    catch(const fs::filesystem_error &ex) {
+      std::stringstream err;
+      err << "File error for'" << vm["output"].as<std::string>()
+        << "'. " << ex.code() << ": " << ex.what();
+      throw std::runtime_error(err.str());
+    }
+  }
+  else {
+    ADC_board::data_handler hdlr;
+
+    // don't produce anything if silent
+    if(vm.count("silent"))
+      hdlr = adc_board->null_consumer();
+    else
+      hdlr = adc_board->screen_printer();
+
+    if(!hdlr)
+      throw std::runtime_error("Unsupported output mode for this ADC board");
+
+    adc_board->setup_com();
+    adc_board->initialize();
+    adc_board->trigger_sampling(hdlr);
+  }
+
+
+
+//
+//
 
 ////   sensitivity is 1/(2^23-1) * FSRn/(FSRd * gain) * ADC_count
 //    ADC_board::rational_type rational_sens = adc_board->sensitivity();
@@ -231,6 +115,4 @@ std::shared_ptr<ADC_board> enable_adc(const po::variables_map &vm)
 //
 //   done = true;
 //   handler.join();
-
-  return adc_board;
 }

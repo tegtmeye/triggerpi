@@ -9,14 +9,14 @@
 
 #include <boost/program_options.hpp>
 #include <boost/rational.hpp>
+#include <boost/filesystem/path.hpp>
 
-#include <tuple>
-#include <functional>
 #include <cstdint>
-#include <ratio>
+#include <functional>
 
 namespace b = boost;
 namespace po = boost::program_options;
+namespace fs = boost::filesystem;
 
 
 // Endian swap convenience functions
@@ -119,7 +119,6 @@ inline T be_to_native(T val)
 }
 
 
-
 class ADC_board {
   public:
     // All functions returning this rational type are exact as to preserve
@@ -130,7 +129,7 @@ class ADC_board {
     // conversion.
     typedef b::rational<std::uint64_t> rational_type;
     typedef std::function<
-      bool(void *data, std::size_t rows, const ADC_board &)> data_handler;
+      bool(void *data, std::size_t rows, const ADC_board &board)> data_handler;
 
     ADC_board(const po::variables_map &vm) :_vm(vm) {}
     virtual ~ADC_board(void) {}
@@ -199,8 +198,30 @@ class ADC_board {
     // object.
     virtual bool disabled(void) const = 0;
 
+
+    // board-specific data handlers. If not applicable, or not implemented,
+    // then return empty data handler to indicate n/a
+
+    // output to screen
+    virtual data_handler screen_printer(void) const = 0;
+
+    // output to file
+    virtual data_handler file_printer(const fs::path &loc) const = 0;
+
+    // nothing with the data
+    virtual data_handler null_consumer(void) const = 0;
+
   protected:
     const po::variables_map &_vm;
 };
+
+
+struct do_nothing_handler {
+  bool operator()(void *_data, std::size_t num_rows, const ADC_board &adc_board)
+  {
+    return false;
+  }
+};
+
 
 #endif

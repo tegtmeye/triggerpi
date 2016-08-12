@@ -30,6 +30,8 @@ bin_PROGRAMS= \
 triggerpi_SOURCES= \
 	bcm2835_sentry.h \
 	ADC_board.h \
+	basic_screen_printer.h \
+	basic_file_printer.h \
 	ADC_ops.h \
 	ADC_ops.cc \
 	waveshare_ADS1256_expansion.h \

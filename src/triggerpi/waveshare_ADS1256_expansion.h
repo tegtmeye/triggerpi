@@ -9,6 +9,10 @@
 #include "ADC_board.h"
 #include "bcm2835_sentry.h"
 
+#include "basic_screen_printer.h"
+#include "basic_file_printer.h"
+
+
 #include <boost/program_options.hpp>
 #include <boost/lockfree/spsc_queue.hpp>
 
@@ -21,6 +25,10 @@ namespace waveshare {
 
 class waveshare_ADS1256 :public ADC_board {
   public:
+    typedef basic_screen_printer<std::uint32_t,true,3> screen_printer_type;
+    typedef basic_file_printer<std::uint32_t,true,3> file_printer_type;
+    typedef do_nothing_handler null_consumer_type;
+
     waveshare_ADS1256(const po::variables_map &vm);
 
     virtual void configure_options(void);
@@ -44,6 +52,12 @@ class waveshare_ADS1256 :public ADC_board {
     virtual bool sample_time_prefix(void) const;
 
     virtual bool disabled(void) const;
+
+    virtual data_handler screen_printer(void) const;
+
+    virtual data_handler file_printer(const fs::path &loc) const;
+
+    virtual data_handler null_consumer(void) const;
 
   private:
     typedef std::vector<char> sample_buffer_type;
@@ -106,16 +120,33 @@ inline std::uint32_t waveshare_ADS1256::enabled_channels(void) const
   return channel_assignment.size();
 }
 
-inline bool waveshare_ADS1256::disabled(void) const
-{
-  return _disabled;
-}
-
 inline bool waveshare_ADS1256::sample_time_prefix(void) const
 {
   return true;;
 }
 
+inline bool waveshare_ADS1256::disabled(void) const
+{
+  return _disabled;
+}
+
+inline waveshare_ADS1256::data_handler
+waveshare_ADS1256::screen_printer(void) const
+{
+  return screen_printer_type();
+}
+
+inline waveshare_ADS1256::data_handler
+waveshare_ADS1256::file_printer(const fs::path &loc) const
+{
+  return file_printer_type(loc);
+}
+
+inline waveshare_ADS1256::data_handler
+waveshare_ADS1256::null_consumer(void) const
+{
+  return null_consumer_type();
+}
 
 
 

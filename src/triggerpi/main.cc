@@ -85,11 +85,14 @@ int main(int argc, char *argv[])
       "for --config CONFIG_FILE")
     ("output,o", po::value<std::string>(),
       "Output the configured channels into [file] according to format given "
-      "by --format.")
+      "by --format. If 'output' is not specified, output the configured "
+      "channels to screen unless the --silent options is given.")
     ("format,f", po::value<std::string>()->default_value("csv"),
       "Output the configured channels into [file] according to the given "
       "format. Only meaningful if --output is also given. Currently the only "
       "supported format is csv")
+    ("silent,s","Quash all non-error data processing screen printing.")
+
     ;
 
 
@@ -304,21 +307,19 @@ int main(int argc, char *argv[])
       }
     }
 
-    std::shared_ptr<ADC_board> adc_board;
-
     // check for required configuration items
     if(!vm.count("ADC.system") || vm["ADC.system"].as<std::string>()=="none") {
       if (vm.count("verbose"))
         std::cout << "Disabling ADC\n";
     }
     else
-      adc_board = enable_adc(vm);
+      enable_adc(vm);
 
 
 
 
 
-    board_init();
+//     board_init();
 
   }
   catch(const std::exception &e) {

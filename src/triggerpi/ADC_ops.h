@@ -6,6 +6,6 @@
 
 namespace po = boost::program_options;
 
-std::shared_ptr<ADC_board> enable_adc(const po::variables_map &vm);
+void enable_adc(const po::variables_map &vm);
 
 #endif
