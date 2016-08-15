@@ -337,8 +337,9 @@ void write_to_registers(uint8_t reg_start, char *data, uint8_t num)
 
 
 waveshare_ADS1256::waveshare_ADS1256(const po::variables_map &vm)
- :ADC_board(vm), sample_rate(detail::validate_translate_sample_rate(vm)),
-  used_pins(9,0), _disabled(false), _sample_time_prefix(true)
+ :ADC_board(vm), row_block(1),
+ sample_rate(detail::validate_translate_sample_rate(vm)),
+  used_pins(9,0), _disabled(false), _sample_time_prefix(true), _async(false)
 {
   std::tie(_gain_code,_gain) = detail::validate_translate_gain(vm);
 }
@@ -366,7 +367,17 @@ void waveshare_ADS1256::configure_options(void)
   if(!_vm.count("ADC.waveshare.Vref"))
     throw std::runtime_error("Missing Waveshare reference voltage");
 
-  _Vref = detail::validate_translate_Vref(_vm["ADC.waveshare.Vref"].as<std::string>());
+  _Vref = detail::validate_translate_Vref(
+    _vm["ADC.waveshare.Vref"].as<std::string>());
+
+  _async = (_vm.count("async") && _vm["async"].as<bool>());
+
+  if(_vm.count("ADC.waveshare.sampleblocks"))
+    row_block = _vm["ADC.waveshare.sampleblocks"].as<std::size_t>();
+
+  if(!row_block)
+    throw std::runtime_error("ADC.waveshare.sampleblocks must be a positive "
+      "integer");
 }
 
 
@@ -434,20 +445,19 @@ void waveshare_ADS1256::initialize(void)
 
 void waveshare_ADS1256::trigger_sampling(const data_handler &handler)
 {
-  if(_sample_time_prefix)
-    trigger_sampling_wstat_impl(handler);
-  else
-    trigger_sampling_impl(handler);
+  if(_async) {
+    if(_sample_time_prefix)
+      trigger_sampling_async_wstat_impl(handler);
+    else
+      trigger_sampling_async_impl(handler);
+  }
+  else {
+    if(_sample_time_prefix)
+      trigger_sampling_wstat_impl(handler);
+    else
+      trigger_sampling_impl(handler);
+  }
 }
-
-void waveshare_ADS1256::trigger_sampling_async(const data_handler &handler)
-{
-  if(_sample_time_prefix)
-    trigger_sampling_async_wstat_impl(handler);
-  else
-    trigger_sampling_async_impl(handler);
-}
-
 
 void waveshare_ADS1256::validate_assign_channel(const std::string config_str)
 {

@@ -49,15 +49,18 @@ void enable_adc(const po::variables_map &vm)
   if(adc_board->disabled())
     return; // empty probably should output something
 
-  ADC_board::data_handler hdlr;
 
   if(vm.count("output")) {
     try {
-      hdlr = adc_board->file_printer(fs::path(vm["output"].as<std::string>()));
+      ADC_board::data_handler hdlr =
+        adc_board->file_printer(fs::path(vm["output"].as<std::string>()));
 
       if(!hdlr)
         throw std::runtime_error("Unsupported output mode for this ADC board");
 
+      adc_board->setup_com();
+      adc_board->initialize();
+      adc_board->trigger_sampling(hdlr);
     }
     catch(const fs::filesystem_error &ex) {
       std::stringstream err;
@@ -77,23 +80,12 @@ void enable_adc(const po::variables_map &vm)
 
     if(!hdlr)
       throw std::runtime_error("Unsupported output mode for this ADC board");
-  }
 
-  try {
     adc_board->setup_com();
     adc_board->initialize();
+    adc_board->trigger_sampling(hdlr);
+  }
 
-    if(vm.count("async") && vm["async"].as<bool>())
-      adc_board->trigger_sampling_async(hdlr);
-    else
-      adc_board->trigger_sampling(hdlr);
-  }
-  catch(const fs::filesystem_error &ex) {
-    std::stringstream err;
-    err << "File error for'" << vm["output"].as<std::string>()
-      << "'. " << ex.code() << ": " << ex.what();
-    throw std::runtime_error(err.str());
-  }
 
 
 //

@@ -37,8 +37,6 @@ class waveshare_ADS1256 :public ADC_board {
 
     virtual void trigger_sampling(const data_handler &handler);
 
-    virtual void trigger_sampling_async(const data_handler &handler);
-
     virtual std::uint32_t bit_depth(void) const;
 
     virtual bool ADC_counts_signed(void) const;
@@ -64,7 +62,7 @@ class waveshare_ADS1256 :public ADC_board {
     typedef std::shared_ptr<sample_buffer_type> sample_buffer_ptr;
     typedef b::lockfree::spsc_queue<sample_buffer_ptr> ringbuffer_type;
 
-    static const std::size_t row_block = 2;
+    std::size_t row_block;
 
     unsigned char sample_rate;
     unsigned char _gain_code;
@@ -77,6 +75,7 @@ class waveshare_ADS1256 :public ADC_board {
 
     bool _disabled;
     bool _sample_time_prefix;
+    bool _async;
 
 
     // In this order...

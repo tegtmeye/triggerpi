@@ -161,8 +161,6 @@ class ADC_board {
     // same for this->ADC_counts_signed()
     virtual void trigger_sampling(const data_handler &handler) = 0;
 
-    virtual void trigger_sampling_async(const data_handler &handler) = 0;
-
     // State information
 
     // number of bits for each sample

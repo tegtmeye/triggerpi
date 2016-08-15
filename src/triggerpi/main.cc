@@ -159,6 +159,13 @@ int main(int argc, char *argv[])
         "  To configure pins 1 for singled ended input and pin 3 and 4 "
         "for differential:\n"
         "  --ADC.channel 1,COM --ADC.channel 3,4\n")
+     ("ADC.waveshare.sampleblocks",
+        po::value<std::vector<std::size_t> >(),
+        "  Override the number of samples to process in each block operation. "
+        "This is a function of the number of channels currently configured, "
+        "whether or not asynchronous operations are enabled, and is affected "
+        "by system memory. This value must be a positive integer greater than "
+        "one.")
       ;
 
 
