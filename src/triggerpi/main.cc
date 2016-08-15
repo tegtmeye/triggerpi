@@ -71,27 +71,27 @@ int main(int argc, char *argv[])
     ("version", "Print version string")
     ("verbose,v", "Be verbose")
     ("config,c", po::value<std::string>(),
-      "Use configuration file at <path>\n"
+      "  Use configuration file at <path>\n"
       "A configuration file used to define the relevant "
       "parameters used for reading and triggering. If one exists, "
-      "first use the default site configuration file "
+      "first use the default site configuration file at "
         "[" TRIGGERPI_SITE_CONFIGDIR "/triggerpi_config] "
       "These values are overridden by the local configuration "
-      "if it exists [~/." PACKAGE "]\n"
-      "If this option is given, do not use any of the predefined "
+      "if it exists at [~/." PACKAGE "]\n"
+      "  If this option is given, do not use any of the predefined "
       "configuration files but instead only use the one provided. "
       "All command line options will override the options "
       "set in any configuration file. [CONFIG_FILE] is a shortcut "
       "for --config CONFIG_FILE")
     ("output,o", po::value<std::string>(),
-      "Output the configured channels into [file] according to format given "
+      "  Output the configured channels into [file] according to format given "
       "by --format. If 'output' is not specified, output the configured "
       "channels to screen unless the --silent options is given.")
     ("format,f", po::value<std::string>()->default_value("csv"),
-      "Output the configured channels into [file] according to the given "
+      "  Output the configured channels into [file] according to the given "
       "format. Only meaningful if --output is also given. Currently the only "
       "supported format is csv")
-    ("silent,s","Quash all non-error data processing screen printing.")
+    ("silent,s","  Quash all non-error data processing screen printing.")
 
     ;
 
@@ -100,10 +100,14 @@ int main(int argc, char *argv[])
     po::options_description global_config("Global Config Options");
     global_config.add_options()
       ("ADC.system",po::value<std::string>(),
-        "System to configure and use. Exactly one of:\n"
+        "  System to configure and use. Exactly one of:\n"
         "  'waveshare' - The Waveshare High Precision ADC/DAC expansion board"
         " based on the ADS1256 24-bit ADC and the DAC8532 16-bit DAC. "
         "NOTE: Currently this is the only supported system.")
+      ("async,a",po::value<bool>()->default_value(true),
+        "  Hint to run in asynchronous mode if possible. That is, reading from "
+        "the ADC and writing to memory/disk will run in separate threads. "
+        "This option will be overridden to 'false' for single-core CPUs")
       ;
 
     // Waveshare High-Precision ADC/DA Board Configuration options
@@ -111,21 +115,21 @@ int main(int argc, char *argv[])
       "Waveshare ADC/DA Config Options");
     waveshare_config.add_options()
       ("ADC.waveshare.sample_rate",po::value<std::string>(),
-        "Set the sample rate. Valid values are one of 30000 [default], "
+        "  Set the sample rate. Valid values are one of 30000 [default], "
         "15000, 7500, 3750, 2000, 1000, 500, 100, 60, 50, 30, 25, 15, 10, "
         "5, or 2.5 samples per second.")
       ("ADC.waveshare.gain",po::value<std::string>(),
-        "Set the gain for the configured ADC. Valid values are one of 1 "
+        "  Set the gain for the configured ADC. Valid values are one of 1 "
         "[default], 2, 4, 8, 16, 32, or 64.")
       ("ADC.waveshare.Vref",po::value<std::string>()->default_value("2.5"),
-        "Set the ADC reference voltage. This is the positive voltage "
+        "  Set the ADC reference voltage. This is the positive voltage "
         "difference between pin 4 and pin 3 on the ADS1256 ADC chip itself. "
         "This setting is only needed if you have actually measured the "
         "voltage difference between these two pins and you need a higher-"
         "accuracy measurement. The nominal value for these boards is 2.5V. "
         "This only affects voltage calculations")
       ("ADC.waveshare.AINCOM",po::value<double>()->default_value(0.0),
-        "Set the ADC center voltage for single-ended inputs. This value is "
+        "  Set the ADC center voltage for single-ended inputs. This value is "
         "only meaningful for ADC count to voltage conversions. That is, the "
         "ADC counts will be centered around the AINCOM voltage input "
         "of this value. An ADC count of zero means "
@@ -138,7 +142,7 @@ int main(int argc, char *argv[])
         "-2^23 to +2^23 (24-bits of precision) for a 0->5V input")
      ("ADC.waveshare.channel",
         po::value<std::vector<std::string> >(),
-        "Configure each ADC channel. There can be multiple occurrences "
+        "  Configure each ADC channel. There can be multiple occurrences "
         "of ADC.channel as need to configure the desired input. For the "
         "Waveshare ADC/DA expansion board, there are 9 pins that can be "
         "configured as up to eight single-ended channels, up to four "

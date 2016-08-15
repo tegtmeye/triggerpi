@@ -88,6 +88,9 @@ class waveshare_ADS1256 :public ADC_board {
     void trigger_sampling_impl(const data_handler &handler);
     void trigger_sampling_wstat_impl(const data_handler &handler);
 
+    void trigger_sampling_async_impl(const data_handler &handler);
+    void trigger_sampling_async_wstat_impl(const data_handler &handler);
+
     void async_handler(ringbuffer_type &allocation_ringbuffer,
       ringbuffer_type &ready_ringbuffer,const data_handler &handler,
       std::atomic<bool> &done);
