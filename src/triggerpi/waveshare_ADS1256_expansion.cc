@@ -103,48 +103,82 @@ T ipow10(T exp)
     return result;
 }
 
-unsigned char validate_translate_sample_rate(const po::variables_map &vm)
+std::tuple<unsigned char,ADC_board::rational_type>
+validate_translate_sample_rate(const po::variables_map &vm)
 {
   // 30000 is the default sample rate
-  unsigned char result = BOOST_BINARY(11110000);
+  unsigned char code_result = BOOST_BINARY(11110000);
+  ADC_board::rational_type row_rate_result(30000,1);
 
   if(vm.count("ADC.waveshare.sample_rate")) {
     const std::string &sample_rate =
       vm["ADC.waveshare.sample_rate"].as<std::string>();
 
     // Don't be overly clever. Just map to datasheet.
-    if(sample_rate == "30000")
-      result = BOOST_BINARY(11110000);
-    else if(sample_rate == "15000")
-      result = BOOST_BINARY(11100000);
-    else if(sample_rate == "7500")
-      result = BOOST_BINARY(11010000);
-    else if(sample_rate == "3750")
-      result = BOOST_BINARY(11000000);
-    else if(sample_rate == "2000")
-      result = BOOST_BINARY(10110000);
-    else if(sample_rate == "1000")
-      result = BOOST_BINARY(10100001);
-    else if(sample_rate == "500")
-      result = BOOST_BINARY(10010010);
-    else if(sample_rate == "100")
-      result = BOOST_BINARY(10000010);
-    else if(sample_rate == "60")
-      result = BOOST_BINARY(01110010);
-    else if(sample_rate == "50")
-      result = BOOST_BINARY(01100011);
-    else if(sample_rate == "30")
-      result = BOOST_BINARY(01010011);
-    else if(sample_rate == "25")
-      result = BOOST_BINARY(01000011);
-    else if(sample_rate == "15")
-      result = BOOST_BINARY(00110011);
-    else if(sample_rate == "10")
-      result = BOOST_BINARY(00100011);
-    else if(sample_rate == "5")
-      result = BOOST_BINARY(00010011);
-    else if(sample_rate == "2.5")
-      result = BOOST_BINARY(00000011);
+    if(sample_rate == "30000") {
+      code_result = BOOST_BINARY(11110000);
+      row_rate_result = ADC_board::rational_type(30000,1);
+    }
+    else if(sample_rate == "15000") {
+      code_result = BOOST_BINARY(11100000);
+      row_rate_result = ADC_board::rational_type(15000,1);
+    }
+    else if(sample_rate == "7500") {
+      code_result = BOOST_BINARY(11010000);
+      row_rate_result = ADC_board::rational_type(7500,1);
+    }
+    else if(sample_rate == "3750") {
+      code_result = BOOST_BINARY(11000000);
+      row_rate_result = ADC_board::rational_type(3750,1);
+    }
+    else if(sample_rate == "2000") {
+      code_result = BOOST_BINARY(10110000);
+      row_rate_result = ADC_board::rational_type(2000,1);
+    }
+    else if(sample_rate == "1000") {
+      code_result = BOOST_BINARY(10100001);
+      row_rate_result = ADC_board::rational_type(1000,1);
+    }
+    else if(sample_rate == "500") {
+      code_result = BOOST_BINARY(10010010);
+      row_rate_result = ADC_board::rational_type(500,1);
+    }
+    else if(sample_rate == "100") {
+      code_result = BOOST_BINARY(10000010);
+      row_rate_result = ADC_board::rational_type(100,1);
+    }
+    else if(sample_rate == "60") {
+      code_result = BOOST_BINARY(01110010);
+      row_rate_result = ADC_board::rational_type(60,1);
+    }
+    else if(sample_rate == "50") {
+      code_result = BOOST_BINARY(01100011);
+      row_rate_result = ADC_board::rational_type(50,1);
+    }
+    else if(sample_rate == "30") {
+      code_result = BOOST_BINARY(01010011);
+      row_rate_result = ADC_board::rational_type(30,1);
+    }
+    else if(sample_rate == "25") {
+      code_result = BOOST_BINARY(01000011);
+      row_rate_result = ADC_board::rational_type(25,1);
+    }
+    else if(sample_rate == "15") {
+      code_result = BOOST_BINARY(00110011);
+      row_rate_result = ADC_board::rational_type(15,1);
+    }
+    else if(sample_rate == "10") {
+      code_result = BOOST_BINARY(00100011);
+      row_rate_result = ADC_board::rational_type(10,1);
+    }
+    else if(sample_rate == "5") {
+      code_result = BOOST_BINARY(00010011);
+      row_rate_result = ADC_board::rational_type(5,1);
+    }
+    else if(sample_rate == "2.5") {
+      code_result = BOOST_BINARY(00000011);
+      row_rate_result = ADC_board::rational_type(25,10);
+    }
     else {
       std::stringstream err;
       err << "Invalid ADC.sample_rate setting for the Waveshare "
@@ -155,7 +189,7 @@ unsigned char validate_translate_sample_rate(const po::variables_map &vm)
     }
   }
 
-  return result;
+  return std::make_tuple(code_result,row_rate_result);
 }
 
 std::tuple<unsigned char,std::uint32_t>
@@ -337,10 +371,11 @@ void write_to_registers(uint8_t reg_start, char *data, uint8_t num)
 
 
 waveshare_ADS1256::waveshare_ADS1256(const po::variables_map &vm)
- :ADC_board(vm), row_block(1),
- sample_rate(detail::validate_translate_sample_rate(vm)),
-  used_pins(9,0), _disabled(false), _sample_time_prefix(true), _async(false)
+ :ADC_board(vm), row_block(1), used_pins(9,0), _disabled(false),
+  _sample_time_prefix(true), _async(false)
 {
+  std::tie(_sample_rate_code,_row_sampling_rate) =
+    detail::validate_translate_sample_rate(vm);
   std::tie(_gain_code,_gain) = detail::validate_translate_gain(vm);
 }
 
@@ -374,6 +409,10 @@ void waveshare_ADS1256::configure_options(void)
 
   if(_vm.count("ADC.waveshare.sampleblocks"))
     row_block = _vm["ADC.waveshare.sampleblocks"].as<std::size_t>();
+  else if(_async)
+    row_block = 1024;
+  else
+    row_block = 2;
 
   if(!row_block)
     throw std::runtime_error("ADC.waveshare.sampleblocks must be a positive "
@@ -433,7 +472,7 @@ void waveshare_ADS1256::initialize(void)
 
   //DRATE: A/D Data Rate (Address 03h)
   //  Set the sample rate
-  regs[3] = sample_rate;
+  regs[3] = _sample_rate_code;
 
   detail::write_to_registers(REG_STATUS,regs,4);
 
@@ -443,19 +482,20 @@ void waveshare_ADS1256::initialize(void)
 }
 
 
-void waveshare_ADS1256::trigger_sampling(const data_handler &handler)
+void waveshare_ADS1256::trigger_sampling(const data_handler &handler,
+  basic_trigger &trigger)
 {
   if(_async) {
     if(_sample_time_prefix)
-      trigger_sampling_async_wstat_impl(handler);
+      trigger_sampling_async_wstat_impl(handler,trigger);
     else
-      trigger_sampling_async_impl(handler);
+      trigger_sampling_async_impl(handler,trigger);
   }
   else {
     if(_sample_time_prefix)
-      trigger_sampling_wstat_impl(handler);
+      trigger_sampling_wstat_impl(handler,trigger);
     else
-      trigger_sampling_impl(handler);
+      trigger_sampling_impl(handler,trigger);
   }
 }
 
@@ -540,7 +580,8 @@ void waveshare_ADS1256::validate_assign_channel(const std::string config_str)
   used_pins.at(pinB) = true;
 }
 
-void waveshare_ADS1256::trigger_sampling_impl(const data_handler &handler)
+void waveshare_ADS1256::trigger_sampling_impl(const data_handler &handler,
+  basic_trigger &trigger)
 {
   sample_buffer_type sample_buffer(
     row_block*channel_assignment.size()*bit_depth());
@@ -607,7 +648,8 @@ void waveshare_ADS1256::trigger_sampling_impl(const data_handler &handler)
   }
 }
 
-void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler)
+void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
+  basic_trigger &trigger)
 {
   static const std::size_t time_size = sizeof(std::chrono::nanoseconds::rep);
 
@@ -710,7 +752,8 @@ void waveshare_ADS1256::async_handler(ringbuffer_type &allocation_ringbuffer,
 }
 
 
-void waveshare_ADS1256::trigger_sampling_async_impl(const data_handler &handler)
+void waveshare_ADS1256::trigger_sampling_async_impl(const data_handler &handler,
+  basic_trigger &trigger)
 {
   static const std::size_t max_allocation = 32;
   static const std::chrono::milliseconds nap(100);
@@ -802,7 +845,7 @@ void waveshare_ADS1256::trigger_sampling_async_impl(const data_handler &handler)
 }
 
 void waveshare_ADS1256::trigger_sampling_async_wstat_impl(
-  const data_handler &handler)
+  const data_handler &handler, basic_trigger &trigger)
 {
   static const std::size_t time_size = sizeof(std::chrono::nanoseconds::rep);
 

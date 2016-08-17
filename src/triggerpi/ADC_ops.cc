@@ -3,6 +3,7 @@
 #include "ADC_ops.h"
 #include "ADC_board.h"
 #include "waveshare_ADS1256_expansion.h"
+#include "timed_trigger.h"
 
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -16,6 +17,7 @@
 #include <fstream>
 #include <cstring>
 #include <cerrno>
+#include <cmath>
 
 namespace po = boost::program_options;
 namespace fs = boost::filesystem;
@@ -50,6 +52,26 @@ void enable_adc(const po::variables_map &vm)
     return; // empty probably should output something
 
 
+  std::unique_ptr<basic_trigger> trigger;
+
+  double duration = vm["duration"].as<double>();
+  if(std::signbit(duration))
+    trigger.reset(new indefinite_trigger());
+  else {
+    // convert from floating point time duration in seconds to timed_trigger's
+    // time duration representation (integer ticks)
+    typedef std::chrono::duration<double,
+      std::chrono::seconds::period> dseconds_type;
+
+    dseconds_type dseconds(duration);
+
+    timed_trigger::duration_type trig_dur =
+      std::chrono::duration_cast<timed_trigger::duration_type>(dseconds);
+
+    trigger.reset(new timed_trigger(trig_dur));
+  }
+
+
   if(vm.count("output")) {
     try {
       ADC_board::data_handler hdlr =
@@ -60,7 +82,7 @@ void enable_adc(const po::variables_map &vm)
 
       adc_board->setup_com();
       adc_board->initialize();
-      adc_board->trigger_sampling(hdlr);
+      adc_board->trigger_sampling(hdlr,*trigger);
     }
     catch(const fs::filesystem_error &ex) {
       std::stringstream err;
@@ -83,9 +105,8 @@ void enable_adc(const po::variables_map &vm)
 
     adc_board->setup_com();
     adc_board->initialize();
-    adc_board->trigger_sampling(hdlr);
+    adc_board->trigger_sampling(hdlr,*trigger);
   }
-
 
 
 //

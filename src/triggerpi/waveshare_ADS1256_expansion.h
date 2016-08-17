@@ -35,7 +35,10 @@ class waveshare_ADS1256 :public ADC_board {
     virtual void setup_com(void);
     virtual void initialize(void);
 
-    virtual void trigger_sampling(const data_handler &handler);
+    virtual void trigger_sampling(const data_handler &handler,
+      basic_trigger &trigger);
+
+    virtual rational_type row_sampling_rate(void) const;
 
     virtual std::uint32_t bit_depth(void) const;
 
@@ -64,7 +67,8 @@ class waveshare_ADS1256 :public ADC_board {
 
     std::size_t row_block;
 
-    unsigned char sample_rate;
+    unsigned char _sample_rate_code;
+    rational_type _row_sampling_rate;
     unsigned char _gain_code;
     std::uint32_t _gain;
     rational_type _Vref;
@@ -84,16 +88,26 @@ class waveshare_ADS1256 :public ADC_board {
 
     void validate_assign_channel(const std::string config_str);
 
-    void trigger_sampling_impl(const data_handler &handler);
-    void trigger_sampling_wstat_impl(const data_handler &handler);
+    void trigger_sampling_impl(const data_handler &handler,
+      basic_trigger &trigger);
+    void trigger_sampling_wstat_impl(const data_handler &handler,
+      basic_trigger &trigger);
 
-    void trigger_sampling_async_impl(const data_handler &handler);
-    void trigger_sampling_async_wstat_impl(const data_handler &handler);
+    void trigger_sampling_async_impl(const data_handler &handler,
+      basic_trigger &trigger);
+    void trigger_sampling_async_wstat_impl(const data_handler &handler,
+      basic_trigger &trigger);
 
     void async_handler(ringbuffer_type &allocation_ringbuffer,
       ringbuffer_type &ready_ringbuffer,const data_handler &handler,
       std::atomic<bool> &done);
 };
+
+inline ADC_board::rational_type
+waveshare_ADS1256::row_sampling_rate(void) const
+{
+  return _row_sampling_rate;
+}
 
 inline std::uint32_t waveshare_ADS1256::bit_depth(void) const
 {
@@ -110,7 +124,7 @@ inline bool waveshare_ADS1256::ADC_counts_big_endian(void) const
   return true;
 }
 
-inline waveshare_ADS1256::rational_type
+inline ADC_board::rational_type
 waveshare_ADS1256::sensitivity(void) const
 {
   // sensitivity = 1/(2^23-1) * FSR/gain

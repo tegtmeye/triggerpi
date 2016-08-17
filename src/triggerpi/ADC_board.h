@@ -7,6 +7,8 @@
 
 #include <config.h>
 
+#include "basic_trigger.h"
+
 #include <boost/program_options.hpp>
 #include <boost/rational.hpp>
 #include <boost/filesystem/path.hpp>
@@ -158,10 +160,15 @@ class ADC_board {
     // argument is this object. The n dimensional array type and size is
     // determined by the state variables in this object. That is, if
     // this->bit_depth() = 24, then the data is laid out as a 24 bit number
-    // same for this->ADC_counts_signed()
-    virtual void trigger_sampling(const data_handler &handler) = 0;
+    // same for this->ADC_counts_signed(). If seconds is less than zero
+    // then sample continusously
+    virtual void trigger_sampling(const data_handler &handler,
+      basic_trigger &trigger) = 0;
 
     // State information
+
+    // current sampling rate in rows per second.
+    virtual rational_type row_sampling_rate(void) const = 0;
 
     // number of bits for each sample
     virtual std::uint32_t bit_depth(void) const = 0;
@@ -187,7 +194,8 @@ class ADC_board {
     // if returns true, then each column will include the time each sample
     // was taken relative to the start trigger in std::nanoseconds. This
     // includes the size needed to store this value. ie
-    // sizeof(std::chrono::nanoseconds::rep). Endian is native.
+    // sizeof(std::chrono::nanoseconds::rep). Endian is the same as that of
+    // ADC_counts_big_endian
     virtual bool sample_time_prefix(void) const = 0;
 
 

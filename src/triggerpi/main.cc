@@ -91,6 +91,11 @@ int main(int argc, char *argv[])
       "  Output the configured channels into [file] according to the given "
       "format. Only meaningful if --output is also given. Currently the only "
       "supported format is csv")
+    ("duration,d",po::value<double>()->default_value(-1),
+      "  Collection duration in seconds. Specify a negative value "
+      "for indefinite collection length. Note: collection performance "
+      "and duration is affected and ultimately limited by available memory or "
+      "disk space depending on the value of --output and --format")
     ("silent,s","  Quash all non-error data processing screen printing.")
 
     ;
@@ -159,8 +164,7 @@ int main(int argc, char *argv[])
         "  To configure pins 1 for singled ended input and pin 3 and 4 "
         "for differential:\n"
         "  --ADC.channel 1,COM --ADC.channel 3,4\n")
-     ("ADC.waveshare.sampleblocks",
-        po::value<std::vector<std::size_t> >(),
+     ("ADC.waveshare.sampleblocks",po::value<std::size_t>(),
         "  Override the number of samples to process in each block operation. "
         "This is a function of the number of channels currently configured, "
         "whether or not asynchronous operations are enabled, and is affected "
