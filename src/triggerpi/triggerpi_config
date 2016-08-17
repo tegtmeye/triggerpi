@@ -1,10 +1,34 @@
-# ADC configuration
+## configuration file for triggerpi. Call with --config or -c [file] or
+## place your own in ~/.triggerpi or to override these values with your own.
+## All options can be given on the command line using the '--' switch and are
+## tiered hierarchically by the values in brackets separated by periods. That
+## is, to set the system, use --ADC.system=... and to set the sample_rate for
+## the waveshare ADC board, use --ADC.waveshare.sample_rate=... See --help
+## for more information.
 
+## Global configuration options
+#outfile=FILENAME # uncomment to send output to [FILENAME]
+
+# Output format. Currently only csv is supported
+format=csv
+
+# Trigger and sample for [DURATION] seconds. Duration is in floating point
+# format. ie 2.5 for two and a half seconds. Specify a negative value to
+# run indefinitely [default]
+duration=-1
+
+# Use multiple threads [default]
+async=true
+
+## ADC configuration options
 [ADC]
   # The Waveshare ADC is a ADS1256 8-channel single, 4-channel differential
   # ADC.
   system=waveshare
 
+## All configuration options other than --system are optional as there are
+## reasonable default values. The options are explicitly provided here for
+## exposition
 
 # Waveshare High-Precision ADC/DA expansion board configuraiton
 [ADC.waveshare]
@@ -39,6 +63,12 @@
   # "gain" must be one of the following 7 possible gain settings
   # 1, 2, 4, 8, 16, 32, 64
   gain=1
+
+  # Process N rows of sampled data at a time. This can affect sample-to-sample
+  # non-uniformity depending on --async is enabled and the value of
+  # --sample_rate, and the number of configured channels. The default is 2
+  # for non-asynchronous output to screen.
+  sampleblocks=2
 
   # Channel configuration
   #

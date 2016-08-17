@@ -83,36 +83,35 @@ int main(int argc, char *argv[])
       "All command line options will override the options "
       "set in any configuration file. [CONFIG_FILE] is a shortcut "
       "for --config CONFIG_FILE")
-    ("output,o", po::value<std::string>(),
-      "  Output the configured channels into [file] according to format given "
-      "by --format. If 'output' is not specified, output the configured "
-      "channels to screen unless the --silent options is given.")
-    ("format,f", po::value<std::string>()->default_value("csv"),
-      "  Output the configured channels into [file] according to the given "
-      "format. Only meaningful if --output is also given. Currently the only "
-      "supported format is csv")
-    ("duration,d",po::value<double>()->default_value(-1),
-      "  Collection duration in seconds. Specify a negative value "
-      "for indefinite collection length. Note: collection performance "
-      "and duration is affected and ultimately limited by available memory or "
-      "disk space depending on the value of --output and --format")
-    ("silent,s","  Quash all non-error data processing screen printing.")
-
     ;
 
 
     // Global Configuration options
     po::options_description global_config("Global Config Options");
     global_config.add_options()
-      ("ADC.system",po::value<std::string>(),
-        "  System to configure and use. Exactly one of:\n"
-        "  'waveshare' - The Waveshare High Precision ADC/DAC expansion board"
-        " based on the ADS1256 24-bit ADC and the DAC8532 16-bit DAC. "
-        "NOTE: Currently this is the only supported system.")
+      ("outfile,o", po::value<std::string>(),
+        "  Output the configured channels into [file] according to format "
+        "given by --format. If 'output' is not specified, output the "
+        "configured channels to screen unless the --silent options is given.")
+      ("format,f", po::value<std::string>()->default_value("csv"),
+        "  Output the configured channels into [file] according to the given "
+        "format. Only meaningful if --output is also given. Currently the only "
+        "supported format is csv")
+      ("duration,d",po::value<double>()->default_value(-1),
+        "  Collection duration in seconds. Specify a negative value "
+        "for indefinite collection length. Note: collection performance "
+        "and duration is affected and ultimately limited by available memory "
+        "or disk space depending on the value of --output and --format")
+//       ("silent,s","  Quash all non-error data processing screen printing.")
       ("async,a",po::value<bool>()->default_value(true),
         "  Hint to run in asynchronous mode if possible. That is, reading from "
         "the ADC and writing to memory/disk will run in separate threads. "
         "This option will be overridden to 'false' for single-core CPUs")
+      ("ADC.system",po::value<std::string>(),
+        "  ADC system to configure and use. Exactly one of:\n"
+        "  'waveshare' - The Waveshare High Precision ADC/DAC expansion board"
+        " based on the ADS1256 24-bit ADC and the DAC8532 16-bit DAC. "
+        "NOTE: Currently this is the only supported system.")
       ;
 
     // Waveshare High-Precision ADC/DA Board Configuration options
@@ -145,6 +144,12 @@ int main(int argc, char *argv[])
         "-2^22 to +2^22 for a unity gain (23-bits of precision) for a 0->5V "
         "input. If the gain is set to 2, then the ADC values will vary from "
         "-2^23 to +2^23 (24-bits of precision) for a 0->5V input")
+     ("ADC.waveshare.sampleblocks",po::value<std::size_t>(),
+        "  Override the number of samples to process in each block operation. "
+        "This is a function of the number of channels currently configured, "
+        "whether or not asynchronous operations are enabled, and is affected "
+        "by system memory. This value must be a positive integer greater than "
+        "one.")
      ("ADC.waveshare.channel",
         po::value<std::vector<std::string> >(),
         "  Configure each ADC channel. There can be multiple occurrences "
@@ -164,12 +169,6 @@ int main(int argc, char *argv[])
         "  To configure pins 1 for singled ended input and pin 3 and 4 "
         "for differential:\n"
         "  --ADC.channel 1,COM --ADC.channel 3,4\n")
-     ("ADC.waveshare.sampleblocks",po::value<std::size_t>(),
-        "  Override the number of samples to process in each block operation. "
-        "This is a function of the number of channels currently configured, "
-        "whether or not asynchronous operations are enabled, and is affected "
-        "by system memory. This value must be a positive integer greater than "
-        "one.")
       ;
 
 

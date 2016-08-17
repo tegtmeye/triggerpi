@@ -72,10 +72,10 @@ void enable_adc(const po::variables_map &vm)
   }
 
 
-  if(vm.count("output")) {
+  if(vm.count("outfile")) {
     try {
       ADC_board::data_handler hdlr =
-        adc_board->file_printer(fs::path(vm["output"].as<std::string>()));
+        adc_board->file_printer(fs::path(vm["outfile"].as<std::string>()));
 
       if(!hdlr)
         throw std::runtime_error("Unsupported output mode for this ADC board");
@@ -86,7 +86,7 @@ void enable_adc(const po::variables_map &vm)
     }
     catch(const fs::filesystem_error &ex) {
       std::stringstream err;
-      err << "File error for'" << vm["output"].as<std::string>()
+      err << "File error for'" << vm["outfile"].as<std::string>()
         << "'. " << ex.code() << ": " << ex.what();
       throw std::runtime_error(err.str());
     }

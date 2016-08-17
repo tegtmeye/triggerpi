@@ -1,5 +1,5 @@
 AC_PREREQ(2.59)
-AC_INIT(triggerpi, 0.0.0)
+AC_INIT([triggerpi],[0.0.0],[michael.b.tegtmeyer.civ@mail.mil])
 AC_CONFIG_SRCDIR([Makefile.am])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_AUX_DIR(config)
