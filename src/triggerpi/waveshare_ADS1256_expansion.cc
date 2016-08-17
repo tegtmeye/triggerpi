@@ -703,7 +703,8 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
         detail::wait_DRDY();
 
         // switch to the next channel
-        detail::write_to_registers(REG_MUX,&(channel_assignment[chan+1]),1);
+        detail::write_to_registers(REG_MUX,
+          &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
         bcm2835_delayMicroseconds(5);
 
         CS_0();
@@ -730,9 +731,9 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
           std::chrono::duration_cast<std::chrono::nanoseconds>(
             now-start).count();
 
-        data_buffer += 2;
+        data_buffer += 3;
         elapsed = ensure_be(elapsed);
-        std::memcpy(data_buffer+3,&elapsed,time_size);
+        std::memcpy(data_buffer,&elapsed,time_size);
         data_buffer += time_size;
       }
     }

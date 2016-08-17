@@ -55,8 +55,11 @@ void enable_adc(const po::variables_map &vm)
   std::unique_ptr<basic_trigger> trigger;
 
   double duration = vm["duration"].as<double>();
-  if(std::signbit(duration))
+  if(std::signbit(duration)) {
     trigger.reset(new indefinite_trigger());
+    if(vm.count("verbose"))
+      std::cout << "Collecting indefinitely\n";
+  }
   else {
     // convert from floating point time duration in seconds to timed_trigger's
     // time duration representation (integer ticks)
@@ -69,6 +72,9 @@ void enable_adc(const po::variables_map &vm)
       std::chrono::duration_cast<timed_trigger::duration_type>(dseconds);
 
     trigger.reset(new timed_trigger(trig_dur));
+
+    if(vm.count("verbose"))
+      std::cout << "Collecting for " << duration << "seconds.\n";
   }
 
 
