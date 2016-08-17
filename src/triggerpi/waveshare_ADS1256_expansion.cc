@@ -669,6 +669,8 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
   detail::write_to_registers(REG_MUX,&(channel_assignment[0]),1);
   bcm2835_delayMicroseconds(5);
 
+  trigger.wait_start();
+
   CS_0();
   bcm2835_spi_transfer(CMD_SYNC);
   CS_1();
@@ -687,50 +689,55 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
   CS_1();
 
   bool done = false;
-  while(!done) {
+  while(!done && !trigger.should_stop()) {
     // cycling through the channels is done with a one cycle lag. That is,
     // while we are pulling the converted data off of the ADC's register, we
     // have already switched the conversion hardware to the next channel so that
     // off it can be settling down while we are in the process of pulling the
     // data for the previous conversion. See the datasheet pg. 21
-    std::size_t channels = channel_assignment.size();
-    std::size_t step = bit_depth()/8+time_size;
-    for(std::size_t idx = 0; idx < sample_buffer.size(); idx+=step) {
-      detail::wait_DRDY();
+    sample_buffer_type::pointer data_buffer = sample_buffer.data();
 
-      // switch to the next channel
-      detail::write_to_registers(REG_MUX,
-        &(channel_assignment[(idx+1)%channels]),1);
-      bcm2835_delayMicroseconds(5);
+    std::size_t rows;
+    for(rows=0; rows<row_block && !trigger.should_stop(); ++rows) {
+      for(std::size_t chan=0; chan<channel_assignment.size(); ++chan) {
+        detail::wait_DRDY();
 
-      CS_0();
-      bcm2835_spi_transfer(CMD_SYNC);
-      CS_1();
-      bcm2835_delayMicroseconds(5);
+        // switch to the next channel
+        detail::write_to_registers(REG_MUX,&(channel_assignment[chan+1]),1);
+        bcm2835_delayMicroseconds(5);
 
-      CS_0();
-      bcm2835_spi_transfer(CMD_WAKEUP);
-      CS_1();
-      bcm2835_delayMicroseconds(25);
+        CS_0();
+        bcm2835_spi_transfer(CMD_SYNC);
+        CS_1();
+        bcm2835_delayMicroseconds(5);
 
-      CS_0();
-      bcm2835_spi_transfer(CMD_RDATA);
-      bcm2835_delayMicroseconds(10);
+        CS_0();
+        bcm2835_spi_transfer(CMD_WAKEUP);
+        CS_1();
+        bcm2835_delayMicroseconds(25);
 
-      bcm2835_spi_transfern(sample_buffer.data()+idx,3);
-      CS_1();
+        CS_0();
+        bcm2835_spi_transfer(CMD_RDATA);
+        bcm2835_delayMicroseconds(10);
 
-      std::chrono::high_resolution_clock::time_point now =
-        std::chrono::high_resolution_clock::now();
+        bcm2835_spi_transfern(data_buffer,3);
+        CS_1();
 
-      std::chrono::nanoseconds::rep elapsed =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(now-start).count();
+        std::chrono::high_resolution_clock::time_point now =
+          std::chrono::high_resolution_clock::now();
 
-      elapsed = ensure_be(elapsed);
-      std::memcpy(sample_buffer.data()+idx+3,&elapsed,time_size);
+        std::chrono::nanoseconds::rep elapsed =
+          std::chrono::duration_cast<std::chrono::nanoseconds>(
+            now-start).count();
+
+        data_buffer += 2;
+        elapsed = ensure_be(elapsed);
+        std::memcpy(data_buffer+3,&elapsed,time_size);
+        data_buffer += time_size;
+      }
     }
 
-    done = handler(sample_buffer.data(),row_block,*this);
+    done = handler(sample_buffer.data(),rows,*this);
   }
 }
 

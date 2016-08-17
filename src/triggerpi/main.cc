@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
         "and duration is affected and ultimately limited by available memory "
         "or disk space depending on the value of --output and --format")
 //       ("silent,s","  Quash all non-error data processing screen printing.")
-      ("async,a",po::value<bool>()->default_value(true),
+      ("async,a",po::value<bool>()->default_value(false),
         "  Hint to run in asynchronous mode if possible. That is, reading from "
         "the ADC and writing to memory/disk will run in separate threads. "
         "This option will be overridden to 'false' for single-core CPUs")

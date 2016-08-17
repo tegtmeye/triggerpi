@@ -17,7 +17,7 @@ format=csv
 # run indefinitely [default]
 duration=-1
 
-# Use multiple threads [default]
+# Hit to use multiple threads [default]
 async=true
 
 ## ADC configuration options
