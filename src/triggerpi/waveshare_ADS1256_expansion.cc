@@ -670,6 +670,8 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
 
   std::vector<time_point_type> start_vec(channel_assignment.size());
 
+  trigger.wait_start();
+
   // cycle through once and throw away data to set per-channel statistics and
   // ensure valid data on first "real" sample
   char dummy_buf[3];
