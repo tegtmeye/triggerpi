@@ -31,9 +31,10 @@
 //DRDY  -----   ctl_IO     data  starting
 //RST   -----   ctl_IO     reset
 
-#define  DRDY  RPI_GPIO_P1_11
-#define  RST  RPI_GPIO_P1_12
-#define	SPICS	RPI_GPIO_P1_15
+#define DRDY  RPI_GPIO_P1_11
+#define RST   RPI_GPIO_P1_12
+#define PDWN  RPI_GPIO_P1_13
+#define SPICS RPI_GPIO_P1_15
 
 #define CS_1() bcm2835_gpio_write(SPICS,HIGH)
 #define CS_0()  bcm2835_gpio_write(SPICS,LOW)
@@ -412,7 +413,7 @@ void waveshare_ADS1256::configure_options(void)
   else if(_async)
     row_block = 1024;
   else
-    row_block = 2;
+    row_block = 10;
 
   if(!row_block)
     throw std::runtime_error("ADC.waveshare.sampleblocks must be a positive "
@@ -434,9 +435,17 @@ void waveshare_ADS1256::setup_com(void)
   // not clear why mode 1 is being used. Need to clarify with datasheet
   bcm2835_spi_setDataMode(BCM2835_SPI_MODE1);
 
-  // 1024 = 4.096us = 244.140625kHz from 250MHz system clock
+  // original had 1024 = 4.096us = 244.140625kHz from 250MHz system clock
   // not sure why this was chosen
-  bcm2835_spi_setClockDivider(BCM2835_SPI_CLOCK_DIVIDER_1024);
+  // Board clock is nominal 7.68 MHz or 130.2083 ns period
+  // SCLK period is 4*1/fCLKIN per datasheet or 4*130.2083 = 520.8332 ns
+  // This is optimal. SPI driver appears to only support clockdividers
+  // that are a power of two. Thus, we should use
+  // 256 = 1.024us = 976.5625MHz from 250MHz system clock
+  // Cycling throughput for 521 ns is 4374 with 30,000 SPS setting. Thus we
+  // should expect to see lower performace. On my system, I achieve
+  // ~0.24 ms sample period or about 4,166.6 interleaved samples per second
+  bcm2835_spi_setClockDivider(BCM2835_SPI_CLOCK_DIVIDER_256);
 
   // select SPI interface 0 for ADS1256 ADC
   bcm2835_spi_chipSelect(BCM2835_SPI_CS0);
@@ -651,43 +660,49 @@ void waveshare_ADS1256::trigger_sampling_impl(const data_handler &handler,
 void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
   basic_trigger &trigger)
 {
-  static const std::size_t time_size = sizeof(std::chrono::nanoseconds::rep);
+  typedef std::chrono::high_resolution_clock::time_point time_point_type;
+  typedef std::chrono::nanoseconds::rep nanosecond_rep_type;
+
+  static const std::size_t time_size = sizeof(nanosecond_rep_type);
 
   sample_buffer_type sample_buffer(
     row_block*channel_assignment.size()*(bit_depth()/8+time_size));
 
-  std::chrono::high_resolution_clock::time_point start =
-    std::chrono::high_resolution_clock::now();
+  std::vector<time_point_type> start_vec(channel_assignment.size());
 
+  // cycle through once and throw away data to set per-channel statistics and
+  // ensure valid data on first "real" sample
+  char dummy_buf[3];
+  for(std::size_t chan=0; chan<channel_assignment.size(); ++chan) {
+    // 2,083.3328 usec max wait
+    detail::wait_DRDY();
 
-  // set the MUX to the first channel so that the conversion will be the
-  // first one read. After a sampling cycle has taken place, the ADC will
-  // already have the correct channel loaded in MUX
-  detail::wait_DRDY();
+    // switch to the next channel
+    detail::write_to_registers(REG_MUX,
+      &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
+    bcm2835_delayMicroseconds(5);
 
-  // switch to the first channel
-  detail::write_to_registers(REG_MUX,&(channel_assignment[0]),1);
-  bcm2835_delayMicroseconds(5);
+    CS_0();
+    bcm2835_spi_transfer(CMD_SYNC);
+    CS_1();
+    bcm2835_delayMicroseconds(5);
 
-  trigger.wait_start();
+    CS_0();
+    bcm2835_spi_transfer(CMD_WAKEUP);
+    CS_1();
+    bcm2835_delayMicroseconds(25);
 
-  CS_0();
-  bcm2835_spi_transfer(CMD_SYNC);
-  CS_1();
-  bcm2835_delayMicroseconds(5);
+    CS_0();
+    bcm2835_spi_transfer(CMD_RDATA);
+    bcm2835_delayMicroseconds(10);
 
-  CS_0();
-  bcm2835_spi_transfer(CMD_WAKEUP);
-  CS_1();
-  bcm2835_delayMicroseconds(25);
+    bcm2835_spi_transfern(dummy_buf,3);
+    CS_1();
 
-  // wait?
-  CS_0();
-  //don't actually read the data yet
-  bcm2835_spi_transfer(CMD_RDATA);
-  bcm2835_delayMicroseconds(10);
-  CS_1();
+    start_vec[chan] = std::chrono::high_resolution_clock::now();
+  }
 
+  // correct channel is now staged for conversion
   bool done = false;
   while(!done && !trigger.should_stop()) {
     // cycling through the channels is done with a one cycle lag. That is,
@@ -700,6 +715,7 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
     std::size_t rows;
     for(rows=0; rows<row_block && !trigger.should_stop(); ++rows) {
       for(std::size_t chan=0; chan<channel_assignment.size(); ++chan) {
+        // 2,083.3328 usec max wait
         detail::wait_DRDY();
 
         // switch to the next channel
@@ -729,7 +745,7 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
 
         std::chrono::nanoseconds::rep elapsed =
           std::chrono::duration_cast<std::chrono::nanoseconds>(
-            now-start).count();
+            now-start_vec[chan]).count();
 
         data_buffer += 3;
         elapsed = ensure_be(elapsed);

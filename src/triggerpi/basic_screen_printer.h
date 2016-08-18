@@ -64,7 +64,7 @@ struct basic_screen_printer {
 
           data += sizeof(std::chrono::nanoseconds::rep);
 
-          std::printf(" %010i(0x%08X)[%lld ns]",adc_counts,adc_counts,elapsed);
+          std::printf(" (0x%08X)[%lld ns]",adc_counts,elapsed);
         }
         std::printf("\n");
       }

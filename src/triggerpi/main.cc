@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
         "and duration is affected and ultimately limited by available memory "
         "or disk space depending on the value of --output and --format")
 //       ("silent,s","  Quash all non-error data processing screen printing.")
-      ("async,a",po::value<bool>()->default_value(false),
+      ("async,a",po::value<bool>()->default_value(true),
         "  Hint to run in asynchronous mode if possible. That is, reading from "
         "the ADC and writing to memory/disk will run in separate threads. "
         "This option will be overridden to 'false' for single-core CPUs")
@@ -119,8 +119,20 @@ int main(int argc, char *argv[])
       "Waveshare ADC/DA Config Options");
     waveshare_config.add_options()
       ("ADC.waveshare.sample_rate",po::value<std::string>(),
-        "  Set the sample rate. Valid values are one of 30000 [default], "
-        "15000, 7500, 3750, 2000, 1000, 500, 100, 60, 50, 30, 25, 15, 10, "
+        "  Set the sample rate. Actual data rates depend on the number of "
+        "channels to read. For the ADS1256 ADC chip, each channel is "
+        "multiplexed using a single ADC core. Each additional channel "
+        "sampled reduces the per-channel sampling rate linearly. This cycling "
+        "also imposes an overhead that further reduces the peak sample rate "
+        "from the advertised maximums. Valid values reflect the peak sample "
+        "rate based on a single channel but the approximate corresponding "
+        "multiplexed rate is also listed. For example 30000 <~4165> "
+        "indicates that the valid setting is '30000' which corresponds to "
+        "the single-channel sampling rate and a multiplexed rate of "
+        "approximately 4165 samples-per-second which is further divided by "
+        "the number of channels enabled. Valid values are one of:\n"
+        "  30000 <~4166.7> [default], 15000 <~3600>, "
+        " 7500 <~2910>, 3750 <~2095>, 2000 <~1405>, 1000, 500, 100, 60, 50, 30, 25, 15, 10, "
         "5, or 2.5 samples per second.")
       ("ADC.waveshare.gain",po::value<std::string>(),
         "  Set the gain for the configured ADC. Valid values are one of 1 "
@@ -157,7 +169,7 @@ int main(int argc, char *argv[])
         "Waveshare ADC/DA expansion board, there are 9 pins that can be "
         "configured as up to eight single-ended channels, up to four "
         "differential channels, or any combination thereof. The pins are "
-        "labeled 1-8 and 'COM'. The value is a comma-separated list "
+        "labeled 0-7 and 'COM'. The value is a comma-separated list "
         "of pin assignments and channel type id. Pins can only be listed "
         "once with the exception of the COM pin. One end of the "
         "single-ended channels should "
