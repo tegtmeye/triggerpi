@@ -675,7 +675,10 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
   // cycle through once and throw away data to set per-channel statistics and
   // ensure valid data on first "real" sample
   char dummy_buf[3];
-  for(std::size_t chan=0; chan<channel_assignment.size(); ++chan) {
+  for(std::size_t chan=0;
+    chan<channel_assignment.size() && !trigger.should_stop();
+    ++chan)
+  {
     // 2,083.3328 usec max wait
     detail::wait_DRDY();
 
