@@ -535,19 +535,19 @@ void waveshare_ADS1256::validate_assign_channel(const std::string config_str)
           err << "'" << substr << "' is an invalid pin name";
           throw std::runtime_error(err.str());
         }
+      }
 
-        if(pinA > 8) {
-          std::stringstream err;
-          err << "'" << substr << "' is an invalid pin. Pins must be "
-            "labeled 1-8 or COM where COM is a synonym for 8";
-          throw std::runtime_error(err.str());
-        }
-        if(used_pins[pinA]) {
-          std::stringstream err;
-          err << "'" << substr << "' has been used previously. Pins must be "
-            "only used once in a channel assignment";
-          throw std::runtime_error(err.str());
-        }
+      if(pinA > 8) {
+        std::stringstream err;
+        err << "'" << substr << "' is an invalid pin. Pins must be "
+          "labeled 0-8 or COM where COM is a synonym for 8";
+        throw std::runtime_error(err.str());
+      }
+      if(used_pins[pinA]) {
+        std::stringstream err;
+        err << "'" << substr << "' has been used previously. Pins must be "
+          "only used once in a channel assignment";
+        throw std::runtime_error(err.str());
       }
     }
     else if(i == 1) {
@@ -562,19 +562,19 @@ void waveshare_ADS1256::validate_assign_channel(const std::string config_str)
           err << "'" << substr << "' is an invalid pin name";
           throw std::runtime_error(err.str());
         }
+      }
 
-        if(pinB > 8) {
-          std::stringstream err;
-          err << "'" << substr << "' is an invalid pin. Pins must be "
-            "labeled 1-8 or COM where COM is a synonym for 8";
-          throw std::runtime_error(err.str());
-        }
-        if(used_pins[pinB] || pinB == pinA) {
-          std::stringstream err;
-          err << "'" << substr << "' has been used previously. Pins must be "
-            "only used once in a channel assignment";
-          throw std::runtime_error(err.str());
-        }
+      if(pinB > 8) {
+        std::stringstream err;
+        err << "'" << substr << "' is an invalid pin. Pins must be "
+          "labeled 0-8 or COM where COM is a synonym for 8";
+        throw std::runtime_error(err.str());
+      }
+      if(used_pins[pinB] || pinB == pinA) {
+        std::stringstream err;
+        err << "'" << substr << "' has been used previously. Pins must be "
+          "only used once in a channel assignment";
+        throw std::runtime_error(err.str());
       }
     }
     else {
@@ -588,8 +588,11 @@ void waveshare_ADS1256::validate_assign_channel(const std::string config_str)
   // all is well, now do the assignment and log
   char MUX = (pinA << 4) | pinB;
   channel_assignment.push_back(MUX);
-  used_pins.at(pinA) = true;
-  used_pins.at(pinB) = true;
+  if(pinA < 8)
+    used_pins.at(pinA) = true;
+
+  if(pinB < 8)
+    used_pins.at(pinB) = true;
 }
 
 void waveshare_ADS1256::trigger_sampling_impl(const data_handler &handler,

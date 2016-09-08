@@ -188,9 +188,9 @@ int main(int argc, char *argv[])
         "Waveshare ADC/DA expansion board, there are 9 pins that can be "
         "configured as up to eight single-ended channels, up to four "
         "differential channels, or any combination thereof. The pins are "
-        "labeled 0-7 and 'COM'. The value is a comma-separated list "
-        "of pin assignments and channel type id. Pins can only be listed "
-        "once with the exception of the COM pin. One end of the "
+        "labeled 0-8 and 'COM' where COM is a synonym for 8. The value is a "
+        "comma-separated list of pin assignments and channel type id. Pins can "
+        "only be listed once with the exception of the COM pin. One end of the "
         "single-ended channels should "
         "assigned to 'COM'. Differential channels can be assigned to any "
         "two pins but it is recommended that they be adjacent to each "
@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
         "Unlisted pins will be turned off [preferred]. Examples:\n"
         "  To configure pins 1 for singled ended input and pin 3 and 4 "
         "for differential:\n"
-        "  --ADC.channel 1,COM --ADC.channel 3,4\n")
+        "  --ADC.waveshare.channel 0,COM --ADC.waveshare.channel 2,3\n")
       ;
 
 
