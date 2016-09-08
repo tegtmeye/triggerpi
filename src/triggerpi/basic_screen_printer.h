@@ -30,6 +30,8 @@ struct basic_screen_printer {
 
     char *data = static_cast<char *>(_data);
 
+    // clear the screen and move to top
+    std::cout << "\033[2J\033[H";
     for(std::size_t col=0; col<diff.size(); ++col) {
       // deserialize data
       NativeT adc_counts = 0;
@@ -56,9 +58,7 @@ struct basic_screen_printer {
 
       data += NBytes;
 
-      //printf("\033[2J\033[H");
-
-      std::cout << "\033[2J\033[H"
+      std::cout
         << board_name << "\n\n"
         << "Channel " << col << ": "
         << std::fixed << std::setprecision(6) << sensitivity*adc_counts
