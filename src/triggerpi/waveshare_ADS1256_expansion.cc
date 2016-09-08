@@ -25,26 +25,6 @@
 #endif
 
 
-// delete me
-
-struct delay_tmr
-{
-  delay_tmr(void) {
-    vec.reserve(1000000);
-  }
-
-  std::vector<std::chrono::nanoseconds::rep> vec;
-};
-
-static delay_tmr delay;
-
-void print_delay(void)
-{
-  std::cout << "wait_DRDY length in nanoseconds\n";
-  for (auto&& i : delay.vec)
-    std::cout << i << "\n";
-}
-
 //CS    -----   SPICS
 //DIN   -----   MOSI
 //DOUT  -----   MISO
@@ -350,22 +330,21 @@ ADC_board::rational_type validate_translate_Vref(const std::string Vref_str)
 }
 
 
+/**
+    Spin wait on DRDY
 
-void wait_DRDY(void)
+    OK, this is stupid as a low sample rate will cause the CPU to block but
+    for now this works. Need to rework low sample rate code to just manually
+    poll and sleep instead of waiting on the DRDY to go low. An better
+    alternative is to get GPIO interrupts working but that will likely need
+    this to be run in the kernel which is a major rewrite
+ */
+inline void wait_DRDY(void)
 {
-  std::chrono::high_resolution_clock::time_point start =
-    std::chrono::high_resolution_clock::now();
-
   // Depending on what we are doing, this may make more sense as an interrupt
   while(bcm2835_gpio_lev(DRDY) != 0) {
     // Wait forever.
   }
-
-  std::chrono::high_resolution_clock::time_point now =
-    std::chrono::high_resolution_clock::now();
-
-  delay.vec.emplace_back(
-    std::chrono::duration_cast<std::chrono::nanoseconds>(now-start).count());
 }
 
 /*
@@ -404,9 +383,6 @@ waveshare_ADS1256::waveshare_ADS1256(const po::variables_map &vm)
 
 void waveshare_ADS1256::configure_options(void)
 {
-  // deleteme
-  std::atexit(print_delay);
-
   // Set up channels. If there are no channels, then nothing to do.
   if(_vm.count("ADC.waveshare.channel")) {
     const std::vector<std::string> &channel_vec =
