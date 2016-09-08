@@ -56,12 +56,14 @@ struct basic_screen_printer {
 
       data += NBytes;
 
-      std::cout
+      //printf("\033[2J\033[H");
+
+      std::cout << "\033[2J\033[H"
         << board_name << "\n\n"
         << "Channel " << col << ": "
         << std::fixed << std::setprecision(6) << sensitivity*adc_counts
         << "V (0x" << std::hex << std::setw(8) << std::setfill('0')
-        << adc_counts << ")";
+        << adc_counts << ") ";
 
       if(with_stats) {
         std::chrono::nanoseconds::rep elapsed;
@@ -80,10 +82,8 @@ struct basic_screen_printer {
         diff[col] = elapsed;
       }
 
-      std::cout << "\n";
+      std::cout << "\n\033[?25l";
     }
-
-    printf("\033[2J");
 
     return false;
   }
