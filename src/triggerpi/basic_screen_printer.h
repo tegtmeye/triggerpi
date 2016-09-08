@@ -56,9 +56,12 @@ struct basic_screen_printer {
 
       data += NBytes;
 
-      std::cout << "Channel " << col << ": "
-        << std::setw(4) << std::setfill('0') << sensitivity*adc_counts
-        << std::setw(4) << std::hex << " (0x" << adc_counts << ") ";
+      std::cout
+        << board_name << "\n\n"
+        << "Channel " << col << ": "
+        << std::fixed << std::setprecision(6) << sensitivity*adc_counts
+        << "V (0x" << std::hex << std::setw(8) << std::setfill('0')
+        << adc_counts << ")";
 
       if(with_stats) {
         std::chrono::nanoseconds::rep elapsed;
@@ -69,11 +72,12 @@ struct basic_screen_printer {
         else
           elapsed = le_to_native(elapsed);
 
-        diff[col] = elapsed;
-
         data += sizeof(std::chrono::nanoseconds::rep);
 
-        std::cout << std::setw(0) << (elapsed-diff[col]) << " ns";
+        std::cout << std::dec << std::setw(8)
+                  << (elapsed-diff[col]) << " ns";
+
+        diff[col] = elapsed;
       }
 
       std::cout << "\n";
@@ -84,6 +88,8 @@ struct basic_screen_printer {
     return false;
   }
 
+  std::string board_name;
+
   bool with_stats;
   double sensitivity;
   std::vector<std::chrono::nanoseconds::rep> diff;
@@ -91,10 +97,10 @@ struct basic_screen_printer {
 
 template<typename NativeT, bool ADCBigEndian, std::size_t NBytes>
 basic_screen_printer<NativeT,ADCBigEndian,NBytes>::basic_screen_printer(
-  const ADC_board &adc_board)
-    :with_stats(adc_board.stats()),
-      sensitivity(boost::rational_cast<double>(adc_board.sensitivity())),
-      diff(adc_board.enabled_channels())
+  const ADC_board &adc_board) :board_name(adc_board.board_name()),
+    with_stats(adc_board.stats()),
+    sensitivity(boost::rational_cast<double>(adc_board.sensitivity())),
+    diff(adc_board.enabled_channels())
 {
 }
 

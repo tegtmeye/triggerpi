@@ -165,6 +165,11 @@ class ADC_board {
     virtual void trigger_sampling(const data_handler &handler,
       basic_trigger &trigger) = 0;
 
+    // Board identifiers
+
+    // return the ADC board make and model
+    virtual std::string board_name(void) const = 0;
+
     // State information
 
     // current sampling rate in rows per second.
@@ -181,11 +186,12 @@ class ADC_board {
 
     virtual bool ADC_counts_big_endian(void) const = 0;
 
-    // The full-scale range expressed as a positive rational number.
+    // The sensitivity expressed as a rational number.
     // Using the rational form ensures significant digit carryover to
     // calculations. Thus, the sensitivity can be expressed as:
-    // FSR/(2^24*gain) for unsigned ADC counts and FSR/(2^23-1*gain) for
-    // signed ADC counts
+    // FSR/(2^bit_depth*gain) for unsigned ADC counts and
+    // FSR/(2^bit_depth-1*gain) for signed ADC counts. Since we are using
+    // the rational form, the unit is always in volts.
     virtual rational_type sensitivity(void) const = 0;
 
     // number of active channels that have been configured

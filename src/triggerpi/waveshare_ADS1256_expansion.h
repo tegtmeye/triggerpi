@@ -38,6 +38,8 @@ class waveshare_ADS1256 :public ADC_board {
     virtual void trigger_sampling(const data_handler &handler,
       basic_trigger &trigger);
 
+    virtual std::string board_name(void) const;
+
     virtual rational_type row_sampling_rate(void) const;
 
     virtual std::uint32_t bit_depth(void) const;
@@ -102,6 +104,11 @@ class waveshare_ADS1256 :public ADC_board {
       ringbuffer_type &ready_ringbuffer,const data_handler &handler,
       std::atomic<bool> &done);
 };
+
+inline std::string waveshare_ADS1256::board_name(void) const
+{
+  return "Waveshare High-Precision AD/DA Board";
+}
 
 inline ADC_board::rational_type
 waveshare_ADS1256::row_sampling_rate(void) const
