@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cstdio>
 #include <iostream>
+#include <iomanip>
 
 #ifndef WORDS_BIGENDIAN
 #error missing endian information
