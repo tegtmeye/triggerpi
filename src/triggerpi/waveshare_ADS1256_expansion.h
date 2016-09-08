@@ -102,7 +102,7 @@ class waveshare_ADS1256 :public ADC_board {
 
     void async_handler(ringbuffer_type &allocation_ringbuffer,
       ringbuffer_type &ready_ringbuffer,const data_handler &handler,
-      std::atomic<bool> &done);
+      std::atomic_int &done);
 };
 
 inline std::string waveshare_ADS1256::board_name(void) const

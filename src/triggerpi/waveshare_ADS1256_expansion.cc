@@ -19,6 +19,7 @@
 #include <chrono>
 #include <thread>
 #include <functional>
+#include <atomic>
 
 #ifndef WORDS_BIGENDIAN
 #error missing endian information
@@ -790,14 +791,14 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
 
 void waveshare_ADS1256::async_handler(ringbuffer_type &allocation_ringbuffer,
   ringbuffer_type &ready_ringbuffer, const data_handler &handler,
-  std::atomic<bool> &done)
+  std::atomic_int &done)
 {
   sample_buffer_ptr sample_buffer;
-  while(!done) {
+  while(!done.load()) {
     if(!ready_ringbuffer.pop(sample_buffer))
       continue;
 
-    done = handler(sample_buffer->data(),row_block,*this);
+    done.fetch_or(handler(sample_buffer->data(),row_block,*this));
 
     allocation_ringbuffer.push(sample_buffer);
   }
@@ -818,7 +819,7 @@ void waveshare_ADS1256::trigger_sampling_async_impl(const data_handler &handler,
     allocation_ringbuffer.push(
       sample_buffer_ptr(new sample_buffer_type(buffer_size)));
 
-  std::atomic<bool> done(false);
+  std::atomic_int done(false);
 
   std::thread servicing_thread(&waveshare_ADS1256::async_handler,*this,
     std::ref(allocation_ringbuffer), std::ref(ready_ringbuffer),
@@ -914,7 +915,7 @@ void waveshare_ADS1256::trigger_sampling_async_wstat_impl(
     allocation_ringbuffer.push(
       sample_buffer_ptr(new sample_buffer_type(buffer_size)));
 
-  std::atomic<bool> done(false);
+  std::atomic_int done(false);
 
   std::thread servicing_thread(&waveshare_ADS1256::async_handler,*this,
     std::ref(allocation_ringbuffer), std::ref(ready_ringbuffer),
@@ -961,7 +962,7 @@ void waveshare_ADS1256::trigger_sampling_async_wstat_impl(
 
   // correct channel is now staged for conversion
   sample_buffer_ptr sample_buffer;
-  while(!done && !trigger.should_stop()) {
+  while(!done.load() && !trigger.should_stop()) {
     // get the next data_block
     if(!allocation_ringbuffer.pop(sample_buffer))
       continue;
@@ -1018,7 +1019,7 @@ void waveshare_ADS1256::trigger_sampling_async_wstat_impl(
     ready_ringbuffer.push(sample_buffer);
   }
 
-  done = true;
+  done.store(true);
   servicing_thread.join();
 }
 
