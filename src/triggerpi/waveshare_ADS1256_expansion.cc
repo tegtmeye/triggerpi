@@ -24,6 +24,27 @@
 #error missing endian information
 #endif
 
+
+// delete me
+
+struct delay_tmr
+{
+  delay_tmr(void) {
+    vec.reserve(1000000);
+  }
+
+  std::vector<std::chrono::nanoseconds::rep> vec;
+};
+
+static delay_tmr delay;
+
+void print_delay(void)
+{
+  std::cout << "wait_DRDY length in nanoseconds\n";
+  for (auto&& i : delay.vec)
+    std::cout << i << "\n";
+}
+
 //CS    -----   SPICS
 //DIN   -----   MOSI
 //DOUT  -----   MISO
@@ -332,19 +353,19 @@ ADC_board::rational_type validate_translate_Vref(const std::string Vref_str)
 
 void wait_DRDY(void)
 {
-  // Wait forever.
-  // Depending on what we are doing, this may make more sense as an interrupt
-  for(std::size_t to=0; to<5; ++to) {
-    for(std::size_t i=0; i<400000; ++i) {
-      if(bcm2835_gpio_lev(DRDY)==0)
-        return;
-    }
+  std::chrono::high_resolution_clock::time_point start =
+    std::chrono::high_resolution_clock::now();
 
-    std::cerr << "Warning: ADS1256 timed out waiting on DRDY register\n";
+  // Depending on what we are doing, this may make more sense as an interrupt
+  while(bcm2835_gpio_lev(DRDY) != 0) {
+    // Wait forever.
   }
 
-  // if here, abort
-  throw std::runtime_error("Timed out waiting on ADS1256");
+  std::chrono::high_resolution_clock::time_point now =
+    std::chrono::high_resolution_clock::now();
+
+  delay.vec.emplace_back(
+    std::chrono::duration_cast<std::chrono::nanoseconds>(now-start).count());
 }
 
 /*
@@ -383,6 +404,9 @@ waveshare_ADS1256::waveshare_ADS1256(const po::variables_map &vm)
 
 void waveshare_ADS1256::configure_options(void)
 {
+  // deleteme
+  std::atexit(print_delay);
+
   // Set up channels. If there are no channels, then nothing to do.
   if(_vm.count("ADC.waveshare.channel")) {
     const std::vector<std::string> &channel_vec =
@@ -442,6 +466,8 @@ void waveshare_ADS1256::setup_com(void)
   // This is optimal. SPI driver appears to only support clockdividers
   // that are a power of two. Thus, we should use
   // 256 = 1.024us = 976.5625MHz from 250MHz system clock
+  // Might be possible to get away with a divider of 128, ie
+  // 128 = 512ns = 1.953MHz from 250MHz system clock
   // Cycling throughput for 521 ns is 4374 with 30,000 SPS setting. Thus we
   // should expect to see lower performace. On my system, I achieve
   // ~0.24 ms sample period or about 4,166.6 interleaved samples per second
