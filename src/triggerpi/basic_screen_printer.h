@@ -32,7 +32,7 @@ struct basic_screen_printer {
 
     // clear the screen and move to top
     std::cout << "\033[2J\033[H"
-      << board_name << "\n\n"
+      << board_name << "\n\n";
 
     for(std::size_t col=0; col<diff.size(); ++col) {
       // deserialize data
