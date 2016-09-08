@@ -21,7 +21,7 @@
  */
 template<typename NativeT, bool ADCBigEndian, std::size_t NBytes>
 struct basic_screen_printer {
-  basic_screen_printer(std::size_t enabled_channels) :diff(enabled_channels) {}
+  basic_screen_printer(const ADC_board &adc_board);
 
   bool operator()(void *_data, std::size_t num_rows, const ADC_board &adc_board)
   {
@@ -30,64 +30,53 @@ struct basic_screen_printer {
 
     char *data = static_cast<char *>(_data);
 
-    if(adc_board.stats()) {
-      std::vector<std::chrono::nanoseconds::rep>
-        diff(adc_board.enabled_channels());
+    for(std::size_t col=0; col<diff.size(); ++col) {
+      // deserialize data
+      NativeT adc_counts = 0;
+      char *raw_adc_count = reinterpret_cast<char *>(&adc_counts);
 
-      for(std::size_t row=0; row<num_rows; ++row) {
-        for(std::size_t col=0; col<adc_board.enabled_channels(); ++col) {
-          // deserialize data
-          NativeT adc_counts = 0;
-          char *raw_adc_count = reinterpret_cast<char *>(&adc_counts);
-
-          // compiler should pick one
-          if(ADCBigEndian && WORDS_BIGENDIAN) {
-            std::copy(data,data+NBytes,raw_adc_count);
-            adc_counts >>= ((sizeof(NativeT)-NBytes)*8);
-          }
-          else if(ADCBigEndian && !WORDS_BIGENDIAN) {
-            std::reverse_copy(data,data+NBytes,
-              raw_adc_count+(sizeof(NativeT)-NBytes));
-            adc_counts >>= ((sizeof(NativeT)-NBytes)*8);
-          }
-          else if(!ADCBigEndian && WORDS_BIGENDIAN) {
-            std::reverse_copy(data,data+NBytes,raw_adc_count);
-            adc_counts >>= ((sizeof(NativeT)-NBytes)*8);
-          }
-          else { // !ADCBigEndian && !WORDS_BIGENDIAN
-            std::copy(data,data+NBytes,raw_adc_count+(sizeof(NativeT)-NBytes));
-            adc_counts >>= ((sizeof(NativeT)-NBytes)*8);
-          }
-
-          data += NBytes;
-
-          std::chrono::nanoseconds::rep elapsed;
-          std::memcpy(&elapsed,data,sizeof(std::chrono::nanoseconds::rep));
-
-          if(ADCBigEndian)
-            elapsed = be_to_native(elapsed);
-          else
-            elapsed = le_to_native(elapsed);
-
-          data += sizeof(std::chrono::nanoseconds::rep);
-
-//           std::printf(" (0x%08X)[%lld ns]",adc_counts,elapsed);
-          if(col)
-            std::cout << ", ";
-
-          std::cout
-            << std::hex << "0x" << std::setw(8) << std::setfill('0')
-        	    << adc_counts << ", "
-            << std::dec << std::setw(8) << std::noshowbase << adc_counts
-              << ", " << std::setw(0) << elapsed << ", " << (elapsed-diff[col]);
-          diff[col] = elapsed;
-        }
-//         std::printf("\n");
-        std::cout << "\n";
+      // compiler should pick one
+      if(ADCBigEndian && WORDS_BIGENDIAN) {
+        std::copy(data,data+NBytes,raw_adc_count);
+        adc_counts >>= ((sizeof(NativeT)-NBytes)*8);
       }
-    }
-    else {
+      else if(ADCBigEndian && !WORDS_BIGENDIAN) {
+        std::reverse_copy(data,data+NBytes,
+          raw_adc_count+(sizeof(NativeT)-NBytes));
+        adc_counts >>= ((sizeof(NativeT)-NBytes)*8);
+      }
+      else if(!ADCBigEndian && WORDS_BIGENDIAN) {
+        std::reverse_copy(data,data+NBytes,raw_adc_count);
+        adc_counts >>= ((sizeof(NativeT)-NBytes)*8);
+      }
+      else { // !ADCBigEndian && !WORDS_BIGENDIAN
+        std::copy(data,data+NBytes,raw_adc_count+(sizeof(NativeT)-NBytes));
+        adc_counts >>= ((sizeof(NativeT)-NBytes)*8);
+      }
 
+      data += NBytes;
+
+      std::cout << "Channel " << col << ": "
+        << std::setw(4) << std::setfill('0') << sensitivity*adc_counts
+        << std::setw(4) << std::hex << " (0x" << adc_counts << ") ";
+
+      if(with_stats) {
+        std::chrono::nanoseconds::rep elapsed;
+        std::memcpy(&elapsed,data,sizeof(std::chrono::nanoseconds::rep));
+
+        if(ADCBigEndian)
+          elapsed = be_to_native(elapsed);
+        else
+          elapsed = le_to_native(elapsed);
+
+        diff[col] = elapsed;
+
+        data += sizeof(std::chrono::nanoseconds::rep);
+
+        std::cout << std::setw(0) << (elapsed-diff[col]) << " ns";
+      }
+
+      std::cout << "\n";
     }
 
     printf("\033[2J");
@@ -95,8 +84,19 @@ struct basic_screen_printer {
     return false;
   }
 
+  bool with_stats;
+  double sensitivity;
   std::vector<std::chrono::nanoseconds::rep> diff;
 };
+
+template<typename NativeT, bool ADCBigEndian, std::size_t NBytes>
+basic_screen_printer<NativeT,ADCBigEndian,NBytes>::basic_screen_printer(
+  const ADC_board &adc_board)
+    :with_stats(adc_board.stats()),
+      sensitivity(boost::rational_cast<double>(adc_board.sensitivity())),
+      diff(adc_board.enabled_channels())
+{
+}
 
 
 #endif

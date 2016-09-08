@@ -149,7 +149,7 @@ inline bool waveshare_ADS1256::disabled(void) const
 inline waveshare_ADS1256::data_handler
 waveshare_ADS1256::screen_printer(void) const
 {
-  return screen_printer_type(enabled_channels());
+  return screen_printer_type(*this);
 }
 
 inline waveshare_ADS1256::data_handler
