@@ -107,6 +107,9 @@ int main(int argc, char *argv[])
         "  Hint to run in asynchronous mode if possible. That is, reading from "
         "the ADC and writing to memory/disk will run in separate threads. "
         "This option will be overridden to 'false' for single-core CPUs")
+      ("stats",po::value<bool>()->default_value(true),
+        "  Collect statistics on system performance. For the ADC, this "
+        "means that the per-sample delay is recorded.")
       ("ADC.system",po::value<std::string>(),
         "  ADC system to configure and use. Exactly one of:\n"
         "  'waveshare' - The Waveshare High Precision ADC/DAC expansion board"

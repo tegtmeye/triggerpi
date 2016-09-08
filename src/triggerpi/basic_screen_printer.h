@@ -26,7 +26,7 @@ struct basic_screen_printer {
 
     char *data = static_cast<char *>(_data);
 
-    if(adc_board.sample_time_prefix()) {
+    if(adc_board.stats()) {
       for(std::size_t row=0; row<num_rows; ++row) {
         for(std::size_t col=0; col<adc_board.enabled_channels(); ++col) {
           // deserialize data

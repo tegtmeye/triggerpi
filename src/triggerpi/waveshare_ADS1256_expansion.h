@@ -50,7 +50,7 @@ class waveshare_ADS1256 :public ADC_board {
 
     virtual std::uint32_t enabled_channels(void) const;
 
-    virtual bool sample_time_prefix(void) const;
+    virtual bool stats(void) const;
 
     virtual bool disabled(void) const;
 
@@ -78,8 +78,8 @@ class waveshare_ADS1256 :public ADC_board {
     std::vector<int> used_pins;
 
     bool _disabled;
-    bool _sample_time_prefix;
     bool _async;
+    bool _stats;
 
 
     // In this order...
@@ -136,9 +136,9 @@ inline std::uint32_t waveshare_ADS1256::enabled_channels(void) const
   return channel_assignment.size();
 }
 
-inline bool waveshare_ADS1256::sample_time_prefix(void) const
+inline bool waveshare_ADS1256::stats(void) const
 {
-  return true;;
+  return _stats;
 }
 
 inline bool waveshare_ADS1256::disabled(void) const

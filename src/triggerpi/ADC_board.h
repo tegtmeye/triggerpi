@@ -196,7 +196,7 @@ class ADC_board {
     // includes the size needed to store this value. ie
     // sizeof(std::chrono::nanoseconds::rep). Endian is the same as that of
     // ADC_counts_big_endian
-    virtual bool sample_time_prefix(void) const = 0;
+    virtual bool stats(void) const = 0;
 
 
     // This function is called prior to calling \c setup_com. If this
