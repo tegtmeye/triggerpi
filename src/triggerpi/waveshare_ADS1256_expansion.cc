@@ -792,11 +792,9 @@ void waveshare_ADS1256::async_handler(ringbuffer_type &allocation_ringbuffer,
   ringbuffer_type &ready_ringbuffer, const data_handler &handler,
   std::atomic<bool> &done)
 {
-  //static const std::chrono::milliseconds nap(100);
-
   sample_buffer_ptr sample_buffer;
   while(!done) {
-    while(!ready_ringbuffer.pop(sample_buffer)) {
+    while(!ready_ringbuffer.pop(sample_buffer) && !done) {
       // wait forever
     }
 
@@ -855,7 +853,7 @@ void waveshare_ADS1256::trigger_sampling_async_impl(const data_handler &handler,
   sample_buffer_ptr sample_buffer;
   while(!done) {
     // get the next data_block
-    while(!allocation_ringbuffer.pop(sample_buffer)) {
+    while(!allocation_ringbuffer.pop(sample_buffer) && !done) {
       // wait forever
     }
 
@@ -966,7 +964,7 @@ void waveshare_ADS1256::trigger_sampling_async_wstat_impl(
   sample_buffer_ptr sample_buffer;
   while(!done && !trigger.should_stop()) {
     // get the next data_block
-    while(!allocation_ringbuffer.pop(sample_buffer)) {
+    while(!allocation_ringbuffer.pop(sample_buffer) && !done) {
       // wait forever
     }
 
