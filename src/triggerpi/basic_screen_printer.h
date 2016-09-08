@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <iostream>
 
 #ifndef WORDS_BIGENDIAN
 #error missing endian information
@@ -19,6 +20,8 @@
  */
 template<typename NativeT, bool ADCBigEndian, std::size_t NBytes>
 struct basic_screen_printer {
+  basic_screen_printer(std::size_t enabled_channels) :diff(enabled_channels) {}
+
   bool operator()(void *_data, std::size_t num_rows, const ADC_board &adc_board)
   {
     static_assert(sizeof(NativeT) >= NBytes,
@@ -27,6 +30,9 @@ struct basic_screen_printer {
     char *data = static_cast<char *>(_data);
 
     if(adc_board.stats()) {
+      std::vector<std::chrono::nanoseconds::rep>
+        diff(adc_board.enabled_channels());
+
       for(std::size_t row=0; row<num_rows; ++row) {
         for(std::size_t col=0; col<adc_board.enabled_channels(); ++col) {
           // deserialize data
@@ -64,9 +70,19 @@ struct basic_screen_printer {
 
           data += sizeof(std::chrono::nanoseconds::rep);
 
-          std::printf(" (0x%08X)[%lld ns]",adc_counts,elapsed);
+//           std::printf(" (0x%08X)[%lld ns]",adc_counts,elapsed);
+          if(col)
+            std::cout << ", ";
+
+          std::cout
+            << std::hex << "0x" << std::setw(8) << std::setfill('0')
+        	    << adc_counts << ", "
+            << std::dec << std::setw(8) << std::noshowbase << adc_counts
+              << ", " << std::setw(0) << elapsed << ", " << (elapsed-diff[col]);
+          diff[col] = elapsed;
         }
-        std::printf("\n");
+//         std::printf("\n");
+        std::cout << "\n";
       }
     }
     else {
@@ -77,6 +93,8 @@ struct basic_screen_printer {
 
     return false;
   }
+
+  std::vector<std::chrono::nanoseconds::rep> diff;
 };
 
 
