@@ -794,9 +794,8 @@ void waveshare_ADS1256::async_handler(ringbuffer_type &allocation_ringbuffer,
 {
   sample_buffer_ptr sample_buffer;
   while(!done) {
-    while(!ready_ringbuffer.pop(sample_buffer) && !done) {
-      // wait forever
-    }
+    if(!ready_ringbuffer.pop(sample_buffer))
+      continue;
 
     done = handler(sample_buffer->data(),row_block,*this);
 
@@ -964,9 +963,8 @@ void waveshare_ADS1256::trigger_sampling_async_wstat_impl(
   sample_buffer_ptr sample_buffer;
   while(!done && !trigger.should_stop()) {
     // get the next data_block
-    while(!allocation_ringbuffer.pop(sample_buffer) && !done) {
-      // wait forever
-    }
+    if(!allocation_ringbuffer.pop(sample_buffer))
+      continue;
 
     // cycling through the channels is done with a one cycle lag. That is,
     // while we are pulling the converted data off of the ADC's register, we
@@ -1020,6 +1018,7 @@ void waveshare_ADS1256::trigger_sampling_async_wstat_impl(
     ready_ringbuffer.push(sample_buffer);
   }
 
+  done = true;
   servicing_thread.join();
 }
 
