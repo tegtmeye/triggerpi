@@ -82,7 +82,7 @@ struct basic_screen_printer {
         diff[col] = elapsed;
       }
 
-      std::cout << "\n\033[?25l";
+      std::cout << "\n";
     }
 
     return false;
