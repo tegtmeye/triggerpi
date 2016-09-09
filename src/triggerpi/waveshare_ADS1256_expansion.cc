@@ -694,8 +694,6 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
   sample_buffer_type sample_buffer(
     row_block*channel_assignment.size()*(bit_depth()/8+time_size));
 
-  std::vector<time_point_type> start_vec(channel_assignment.size());
-
   trigger.wait_start();
 
   // cycle through once and throw away data to set per-channel statistics and
@@ -729,9 +727,9 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
 
     bcm2835_spi_transfern(dummy_buf,3);
     CS_1();
-
-    start_vec[chan] = std::chrono::high_resolution_clock::now();
   }
+
+  time_point_type start_time = std::chrono::high_resolution_clock::now();
 
   // correct channel is now staged for conversion
   bool done = false;
@@ -776,7 +774,7 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
 
         std::chrono::nanoseconds::rep elapsed =
           std::chrono::duration_cast<std::chrono::nanoseconds>(
-            now-start_vec[chan]).count();
+            now-start_time).count();
 
         data_buffer += 3;
         elapsed = ensure_be(elapsed);
@@ -940,8 +938,6 @@ void waveshare_ADS1256::trigger_sampling_async_wstat_impl(
     std::ref(allocation_ringbuffer), std::ref(ready_ringbuffer),
     std::cref(handler), std::ref(done));
 
-  std::vector<time_point_type> start_vec(channel_assignment.size());
-
   trigger.wait_start();
 
   // cycle through once and throw away data to set per-channel statistics and
@@ -975,9 +971,9 @@ void waveshare_ADS1256::trigger_sampling_async_wstat_impl(
 
     bcm2835_spi_transfern(dummy_buf,3);
     CS_1();
-
-    start_vec[chan] = std::chrono::high_resolution_clock::now();
   }
+
+  time_point_type start_time = std::chrono::high_resolution_clock::now();
 
   // correct channel is now staged for conversion
   sample_buffer_ptr sample_buffer;
@@ -1026,7 +1022,7 @@ void waveshare_ADS1256::trigger_sampling_async_wstat_impl(
 
         std::chrono::nanoseconds::rep elapsed =
           std::chrono::duration_cast<std::chrono::nanoseconds>(
-            now-start_vec[chan]).count();
+            now-start_time).count();
 
         data_buffer += 3;
         elapsed = ensure_be(elapsed);
