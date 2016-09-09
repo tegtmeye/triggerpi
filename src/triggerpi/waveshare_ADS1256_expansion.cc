@@ -808,18 +808,13 @@ void waveshare_ADS1256::async_handler(ringbuffer_type &allocation_ringbuffer,
 void waveshare_ADS1256::trigger_sampling_async_impl(const data_handler &handler,
   basic_trigger &trigger)
 {
-  typedef std::chrono::high_resolution_clock::time_point time_point_type;
-  typedef std::chrono::nanoseconds::rep nanosecond_rep_type;
-
-  static const std::size_t time_size = sizeof(nanosecond_rep_type);
-
   static const std::size_t max_allocation = 32;
 
   ringbuffer_type allocation_ringbuffer(max_allocation);
   ringbuffer_type ready_ringbuffer(max_allocation);
 
   std::size_t buffer_size =
-    row_block*channel_assignment.size()*(bit_depth()/8+time_size);
+    row_block*channel_assignment.size()*(bit_depth()/8);
 
   for(std::size_t i=0; i<max_allocation; ++i)
     allocation_ringbuffer.push(
@@ -830,8 +825,6 @@ void waveshare_ADS1256::trigger_sampling_async_impl(const data_handler &handler,
   std::thread servicing_thread(&waveshare_ADS1256::async_handler,*this,
     std::ref(allocation_ringbuffer), std::ref(ready_ringbuffer),
     std::cref(handler), std::ref(done));
-
-  std::vector<time_point_type> start_vec(channel_assignment.size());
 
   trigger.wait_start();
 
@@ -866,8 +859,6 @@ void waveshare_ADS1256::trigger_sampling_async_impl(const data_handler &handler,
 
     bcm2835_spi_transfern(dummy_buf,3);
     CS_1();
-
-    start_vec[chan] = std::chrono::high_resolution_clock::now();
   }
 
   // correct channel is now staged for conversion
@@ -912,17 +903,7 @@ void waveshare_ADS1256::trigger_sampling_async_impl(const data_handler &handler,
         bcm2835_spi_transfern(data_buffer,3);
         CS_1();
 
-        std::chrono::high_resolution_clock::time_point now =
-          std::chrono::high_resolution_clock::now();
-
-        std::chrono::nanoseconds::rep elapsed =
-          std::chrono::duration_cast<std::chrono::nanoseconds>(
-            now-start_vec[chan]).count();
-
         data_buffer += 3;
-        elapsed = ensure_be(elapsed);
-        //std::memcpy(data_buffer,&elapsed,time_size);
-        //data_buffer += time_size;
       }
     }
 
