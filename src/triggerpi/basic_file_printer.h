@@ -63,7 +63,6 @@ bool basic_file_printer<NativeT,ADCBigEndian,NBytes>::operator()(void *_data,
     "Native type must be larger then NBytes");
 
   char *data = static_cast<char *>(_data);
-  std::chrono::nanoseconds::rep elapsed;
 
   for(std::size_t row=0; row<num_rows; ++row) {
     for(std::size_t col=0; col<diff.size(); ++col) {
@@ -94,7 +93,12 @@ bool basic_file_printer<NativeT,ADCBigEndian,NBytes>::operator()(void *_data,
 
       if(col != 0)
         *out << ", ";
-      else if(with_stats) {
+
+      *out << std::setw(adc_digits) << std::setfill('0') << adc_counts
+        << ", " << std::fixed << std::setfill('0') << sensitivity*adc_counts ;
+
+      if(with_stats) {
+        std::chrono::nanoseconds::rep elapsed;
         std::memcpy(&elapsed,data,sizeof(std::chrono::nanoseconds::rep));
 
         if(ADCBigEndian)
@@ -104,14 +108,9 @@ bool basic_file_printer<NativeT,ADCBigEndian,NBytes>::operator()(void *_data,
 
         data += sizeof(std::chrono::nanoseconds::rep);
 
-        *out << std::setw(8) << elapsed << ", ";
-      }
-
-      *out << std::setw(adc_digits) << std::setfill('0') << adc_counts
-        << ", " << std::fixed << std::setfill('0') << sensitivity*adc_counts;
-
-      if(with_stats) {
-        *out << ", " << std::setw(8) << (elapsed-diff[col]);
+        *out
+          << ", " << std::setw(8) << (elapsed-diff[col])
+          << ", " << std::setw(8) << elapsed;
 
         diff[col] = elapsed;
       }
