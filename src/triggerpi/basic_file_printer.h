@@ -109,8 +109,9 @@ bool basic_file_printer<NativeT,ADCBigEndian,NBytes>::operator()(void *_data,
         diff[col] = elapsed;
       }
 
-      *out << "\n";
     }
+
+    *out << "\n";
   }
 
   return false;
