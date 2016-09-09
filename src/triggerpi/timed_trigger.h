@@ -12,13 +12,15 @@
     Trigger that starts immediately and triggers stop after the given time
     interval
 */
-template<typename RepT=std::int64_t>
+template<typename RepT=std::chrono::nanoseconds>
 class basic_timed_trigger :public coordinated_trigger {
   public:
-    typedef std::chrono::duration<RepT> duration_type;
+    typedef RepT duration_type;
 
-    template<typename Rep2T>
-    basic_timed_trigger(const std::chrono::duration<Rep2T> &dur);
+    basic_timed_trigger(const duration_type &dur);
+
+    template<typename Rep2T, typename Period>
+    basic_timed_trigger(const std::chrono::duration<Rep2T,Period> &dur);
     basic_timed_trigger(const basic_timed_trigger &rhs) = delete;
     basic_timed_trigger & operator=(const basic_timed_trigger &rhs) = delete;
     ~basic_timed_trigger(void);
@@ -32,22 +34,24 @@ class basic_timed_trigger :public coordinated_trigger {
     std::mutex _start_mutex;
     std::thread _thread;
 
+    void init(void);
     void wait_duration(void);
 };
 
 template<typename RepT>
-template<typename Rep2T>
-basic_timed_trigger<RepT>::
-  basic_timed_trigger(const std::chrono::duration<Rep2T> &dur)
-    :_duration(dur)
+inline basic_timed_trigger<RepT>::basic_timed_trigger(const duration_type &dur)
+  :_duration(dur)
 {
-  /*
-    must be in this order:
-      -lock the mutex
-      -spin off our thread. It will wait until the mutex is unlocked
-  */
-  _start_mutex.lock();
-  _thread = std::thread(&basic_timed_trigger<RepT>::wait_duration,this);
+  init();
+}
+
+template<typename RepT>
+template<typename Rep2T, typename Period>
+inline basic_timed_trigger<RepT>::
+  basic_timed_trigger(const std::chrono::duration<Rep2T,Period> &dur)
+    :_duration(std::chrono::duration_cast<RepT>(dur))
+{
+  init();
 }
 
 template<typename RepT>
@@ -61,6 +65,24 @@ void basic_timed_trigger<RepT>::wait_start(void)
   _start_time = std::chrono::high_resolution_clock::now();
   //start the timing thread
   _start_mutex.unlock();
+}
+
+template<typename RepT>
+basic_timed_trigger<RepT>::~basic_timed_trigger(void)
+{
+  _thread.join();
+}
+
+template<typename RepT>
+inline void basic_timed_trigger<RepT>::init(void)
+{
+  /*
+    must be in this order:
+      -lock the mutex
+      -spin off our thread. It will wait until the mutex is unlocked
+  */
+  _start_mutex.lock();
+  _thread = std::thread(&basic_timed_trigger<RepT>::wait_duration,this);
 }
 
 /*
@@ -79,12 +101,6 @@ void basic_timed_trigger<RepT>::wait_duration(void)
   _start_mutex.unlock();
 
   trigger_stop();
-}
-
-template<typename RepT>
-basic_timed_trigger<RepT>::~basic_timed_trigger(void)
-{
-  _thread.join();
 }
 
 typedef basic_timed_trigger<> timed_trigger;

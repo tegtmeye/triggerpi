@@ -66,12 +66,7 @@ void enable_adc(const po::variables_map &vm)
     typedef std::chrono::duration<double,
       std::chrono::seconds::period> dseconds_type;
 
-    dseconds_type dseconds(duration);
-
-    timed_trigger::duration_type trig_dur =
-      std::chrono::duration_cast<timed_trigger::duration_type>(dseconds);
-
-    trigger.reset(new timed_trigger(trig_dur));
+    trigger.reset(new timed_trigger(dseconds_type(duration)));
 
     if(vm.count("verbose"))
       std::cout << "Collecting for " << duration << "seconds.\n";
