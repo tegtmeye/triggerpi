@@ -103,8 +103,9 @@ bool basic_file_printer<NativeT,ADCBigEndian,NBytes>::operator()(void *_data,
 
         data += sizeof(std::chrono::nanoseconds::rep);
 
-        *out << ", " << std::dec << std::setw(8)
-                  << (elapsed-diff[col]);
+        *out
+          << ", " << std::dec << std::setw(8) << (elapsed-diff[col])
+          << ", " << std::dec << std::setw(8) << elapsed;
 
         diff[col] = elapsed;
       }
