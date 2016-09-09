@@ -13,6 +13,7 @@
 #include <cstdio>
 #include <memory>
 #include <iomanip>
+#include <cmath>
 
 #ifndef WORDS_BIGENDIAN
 #error missing endian information
@@ -33,6 +34,7 @@ class basic_file_printer {
       const ADC_board &adc_board);
 
   private:
+    unsigned int adc_digits;
     std::string board_name;
 
     bool with_stats;
@@ -49,6 +51,8 @@ basic_file_printer<NativeT,ADCBigEndian,NBytes>::basic_file_printer(
       sensitivity(boost::rational_cast<double>(adc_board.sensitivity())),
       diff(adc_board.enabled_channels()), out(new fs::ofstream(loc))
 {
+  // get the number of base 10 digits to display NBytes
+  adc_digits = std::ceil(std::log10(2<<(NBytes*8)));
 }
 
 template<typename NativeT, bool ADCBigEndian, std::size_t NBytes>
@@ -90,7 +94,7 @@ bool basic_file_printer<NativeT,ADCBigEndian,NBytes>::operator()(void *_data,
       if(col != 0)
         *out << ", ";
 
-      *out << std::hex << std::setw(8) << std::setfill('0') << adc_counts;
+      *out << std::setw(adc_digits) << std::setfill('0') << adc_counts;
 
       if(with_stats) {
         std::chrono::nanoseconds::rep elapsed;
@@ -104,8 +108,8 @@ bool basic_file_printer<NativeT,ADCBigEndian,NBytes>::operator()(void *_data,
         data += sizeof(std::chrono::nanoseconds::rep);
 
         *out
-          << ", " << std::dec << std::setw(8) << (elapsed-diff[col])
-          << ", " << std::dec << std::setw(8) << elapsed;
+          << ", " << std::setw(8) << (elapsed-diff[col])
+          << ", " << std::setw(8) << elapsed;
 
         diff[col] = elapsed;
       }
