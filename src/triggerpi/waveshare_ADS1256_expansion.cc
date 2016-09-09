@@ -809,7 +809,6 @@ void waveshare_ADS1256::trigger_sampling_async_impl(const data_handler &handler,
   basic_trigger &trigger)
 {
   static const std::size_t max_allocation = 32;
-  static const std::chrono::milliseconds nap(100);
 
   ringbuffer_type allocation_ringbuffer(max_allocation);
   ringbuffer_type ready_ringbuffer(max_allocation);
@@ -825,73 +824,89 @@ void waveshare_ADS1256::trigger_sampling_async_impl(const data_handler &handler,
     std::ref(allocation_ringbuffer), std::ref(ready_ringbuffer),
     std::cref(handler), std::ref(done));
 
+  trigger.wait_start();
 
-  // set the MUX to the first channel so that the conversion will be the
-  // first one read. After a sampling cycle has taken place, the ADC will
-  // already have the correct channel loaded in MUX
-  detail::wait_DRDY();
+  // cycle through once and throw away data to set per-channel statistics and
+  // ensure valid data on first "real" sample
+  char dummy_buf[3];
+  for(std::size_t chan=0;
+    chan<channel_assignment.size() && !trigger.should_stop();
+    ++chan)
+  {
+    // 2,083.3328 usec max wait
+    detail::wait_DRDY();
 
-  // switch to the first channel
-  detail::write_to_registers(REG_MUX,&(channel_assignment[0]),1);
-  bcm2835_delayMicroseconds(5);
+    // switch to the next channel
+    detail::write_to_registers(REG_MUX,
+      &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
+    bcm2835_delayMicroseconds(5);
 
-  CS_0();
-  bcm2835_spi_transfer(CMD_SYNC);
-  CS_1();
-  bcm2835_delayMicroseconds(5);
+    CS_0();
+    bcm2835_spi_transfer(CMD_SYNC);
+    CS_1();
+    bcm2835_delayMicroseconds(5);
 
-  CS_0();
-  bcm2835_spi_transfer(CMD_WAKEUP);
-  CS_1();
-  bcm2835_delayMicroseconds(25);
+    CS_0();
+    bcm2835_spi_transfer(CMD_WAKEUP);
+    CS_1();
+    bcm2835_delayMicroseconds(25);
 
-  // wait?
-  CS_0();
-  bcm2835_spi_transfer(CMD_RDATA);
-  bcm2835_delayMicroseconds(10);
+    CS_0();
+    bcm2835_spi_transfer(CMD_RDATA);
+    bcm2835_delayMicroseconds(10);
 
+    bcm2835_spi_transfern(dummy_buf,3);
+    CS_1();
+  }
+
+  // correct channel is now staged for conversion
   sample_buffer_ptr sample_buffer;
-  while(!done) {
+  while(!done.load() && !trigger.should_stop()) {
     // get the next data_block
-    while(!allocation_ringbuffer.pop(sample_buffer) && !done) {
-      // wait forever
-    }
+    if(!allocation_ringbuffer.pop(sample_buffer))
+      continue;
 
     // cycling through the channels is done with a one cycle lag. That is,
     // while we are pulling the converted data off of the ADC's register, we
     // have already switched the conversion hardware to the next channel so that
     // off it can be settling down while we are in the process of pulling the
     // data for the previous conversion. See the datasheet pg. 21
-    std::size_t channels = channel_assignment.size();
-    for(std::size_t idx = 0; idx < sample_buffer->size(); idx+=bit_depth()) {
-      detail::wait_DRDY();
+    sample_buffer_type::pointer data_buffer = sample_buffer->data();
 
-      // switch to the next channel
-      detail::write_to_registers(REG_MUX,
-        &(channel_assignment[(idx+1)%channels]),1);
-      bcm2835_delayMicroseconds(5);
+    std::size_t rows;
+    for(rows=0; rows<row_block && !trigger.should_stop(); ++rows) {
+      for(std::size_t chan=0; chan<channel_assignment.size(); ++chan) {
+        // 2,083.3328 usec max wait
+        detail::wait_DRDY();
 
-      CS_0();
-      bcm2835_spi_transfer(CMD_SYNC);
-      CS_1();
-      bcm2835_delayMicroseconds(5);
+        // switch to the next channel
+        detail::write_to_registers(REG_MUX,
+          &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
+        bcm2835_delayMicroseconds(5);
 
-      CS_0();
-      bcm2835_spi_transfer(CMD_WAKEUP);
-      CS_1();
-      bcm2835_delayMicroseconds(25);
+        CS_0();
+        bcm2835_spi_transfer(CMD_SYNC);
+        CS_1();
+        bcm2835_delayMicroseconds(5);
 
-      CS_0();
-      bcm2835_spi_transfer(CMD_RDATA);
-      bcm2835_delayMicroseconds(10);
+        CS_0();
+        bcm2835_spi_transfer(CMD_WAKEUP);
+        CS_1();
+        bcm2835_delayMicroseconds(25);
 
-      bcm2835_spi_transfern(sample_buffer->data()+idx,3);
-      CS_1();
+        CS_0();
+        bcm2835_spi_transfer(CMD_RDATA);
+        bcm2835_delayMicroseconds(10);
+
+        bcm2835_spi_transfern(data_buffer,3);
+        CS_1();
+      }
     }
 
     ready_ringbuffer.push(sample_buffer);
   }
 
+  done.store(true);
   servicing_thread.join();
 }
 
