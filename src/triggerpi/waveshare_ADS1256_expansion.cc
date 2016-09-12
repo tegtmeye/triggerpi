@@ -400,6 +400,8 @@ void waveshare_ADS1256::configure_options(void)
 
   aincom = _vm["ADC.waveshare.AINCOM"].as<double>();
 
+  buffer_enabled = _vm["ADC.waveshare.buffered"].as<bool>();
+
   if(!_vm.count("ADC.waveshare.Vref"))
     throw std::runtime_error("Missing Waveshare reference voltage");
 
@@ -473,8 +475,8 @@ void waveshare_ADS1256::initialize(void)
   char regs[4] = {0};
 
   //STATUS : STATUS REGISTER (ADDRESS 00h);
-  //  MSB first, enable auto-cal, disable input buffer
-  regs[0] = (0 << 3) | (1 << 2) | (0 << 1);
+  //  MSB first, enable auto-cal, set input buffer
+  regs[0] = (0 << 3) | (1 << 2) | (buffer_enabled << 1);
 
   //MUX : Input Multiplexer Control Register (Address 01h)
   regs[1] = 0x08; // for now

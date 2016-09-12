@@ -75,6 +75,7 @@ class waveshare_ADS1256 :public ADC_board {
     std::uint32_t _gain;
     rational_type _Vref;
     double aincom;
+    bool buffer_enabled;
 
     std::vector<char> channel_assignment;
     std::vector<int> used_pins;
