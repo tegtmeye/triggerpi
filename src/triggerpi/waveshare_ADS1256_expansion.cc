@@ -37,8 +37,8 @@
 #define PDWN  RPI_GPIO_P1_13
 #define SPICS RPI_GPIO_P1_15
 
-#define CS_1() bcm2835_gpio_write(SPICS,HIGH)
-#define CS_0()  bcm2835_gpio_write(SPICS,LOW)
+// #define CS_1() bcm2835_gpio_write(SPICS,HIGH)
+// #define CS_0()  bcm2835_gpio_write(SPICS,LOW)
 
 #define DRDY_IS_LOW()	((bcm2835_gpio_lev(DRDY)==0))
 
@@ -355,7 +355,7 @@ void write_to_registers(uint8_t reg_start, char *data, uint8_t num)
 {
   assert(reg_start <= 10 && num > 0);
 
-  CS_0();
+  bcm2835_spi_chipSelect(BCM2835_SPI_CS0);
 
   // first nibble is the command, second is the register number
   bcm2835_spi_transfer(CMD_WREG | reg_start);
@@ -363,8 +363,6 @@ void write_to_registers(uint8_t reg_start, char *data, uint8_t num)
   bcm2835_spi_transfer(num-1);
 
   bcm2835_spi_writenb(data,num);
-
-  CS_1();
 }
 
 
@@ -624,22 +622,18 @@ void waveshare_ADS1256::trigger_sampling_impl(const data_handler &handler,
       &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
     bcm2835_delayMicroseconds(5);
 
-    CS_0();
+    bcm2835_spi_chipSelect(BCM2835_SPI_CS0);
+
     bcm2835_spi_transfer(CMD_SYNC);
-    CS_1();
     bcm2835_delayMicroseconds(5);
 
-    CS_0();
     bcm2835_spi_transfer(CMD_WAKEUP);
-    CS_1();
     bcm2835_delayMicroseconds(25);
 
-    CS_0();
     bcm2835_spi_transfer(CMD_RDATA);
     bcm2835_delayMicroseconds(10);
 
     bcm2835_spi_transfern(dummy_buf,3);
-    CS_1();
   }
 
   // correct channel is now staged for conversion
@@ -663,22 +657,18 @@ void waveshare_ADS1256::trigger_sampling_impl(const data_handler &handler,
           &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
         bcm2835_delayMicroseconds(5);
 
-        CS_0();
+        bcm2835_spi_chipSelect(BCM2835_SPI_CS0);
+
         bcm2835_spi_transfer(CMD_SYNC);
-        CS_1();
         bcm2835_delayMicroseconds(5);
 
-        CS_0();
         bcm2835_spi_transfer(CMD_WAKEUP);
-        CS_1();
         bcm2835_delayMicroseconds(25);
 
-        CS_0();
         bcm2835_spi_transfer(CMD_RDATA);
         bcm2835_delayMicroseconds(10);
 
         bcm2835_spi_transfern(data_buffer,3);
-        CS_1();
 
         data_buffer += 3;
       }
@@ -716,22 +706,18 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
       &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
     bcm2835_delayMicroseconds(5);
 
-    CS_0();
+    bcm2835_spi_chipSelect(BCM2835_SPI_CS0);
+
     bcm2835_spi_transfer(CMD_SYNC);
-    CS_1();
     bcm2835_delayMicroseconds(5);
 
-    CS_0();
     bcm2835_spi_transfer(CMD_WAKEUP);
-    CS_1();
     bcm2835_delayMicroseconds(25);
 
-    CS_0();
     bcm2835_spi_transfer(CMD_RDATA);
     bcm2835_delayMicroseconds(10);
 
     bcm2835_spi_transfern(dummy_buf,3);
-    CS_1();
   }
 
   time_point_type start_time = std::chrono::high_resolution_clock::now();
@@ -757,22 +743,18 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
           &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
         bcm2835_delayMicroseconds(5);
 
-        CS_0();
+        bcm2835_spi_chipSelect(BCM2835_SPI_CS0);
+
         bcm2835_spi_transfer(CMD_SYNC);
-        CS_1();
         bcm2835_delayMicroseconds(5);
 
-        CS_0();
         bcm2835_spi_transfer(CMD_WAKEUP);
-        CS_1();
         bcm2835_delayMicroseconds(25);
 
-        CS_0();
         bcm2835_spi_transfer(CMD_RDATA);
         bcm2835_delayMicroseconds(10);
 
         bcm2835_spi_transfern(data_buffer,3);
-        CS_1();
 
         std::chrono::high_resolution_clock::time_point now =
           std::chrono::high_resolution_clock::now();
@@ -846,22 +828,18 @@ void waveshare_ADS1256::trigger_sampling_async_impl(const data_handler &handler,
       &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
     bcm2835_delayMicroseconds(5);
 
-    CS_0();
+    bcm2835_spi_chipSelect(BCM2835_SPI_CS0);
+
     bcm2835_spi_transfer(CMD_SYNC);
-    CS_1();
     bcm2835_delayMicroseconds(5);
 
-    CS_0();
     bcm2835_spi_transfer(CMD_WAKEUP);
-    CS_1();
     bcm2835_delayMicroseconds(25);
 
-    CS_0();
     bcm2835_spi_transfer(CMD_RDATA);
     bcm2835_delayMicroseconds(10);
 
     bcm2835_spi_transfern(dummy_buf,3);
-    CS_1();
   }
 
   // correct channel is now staged for conversion
@@ -889,22 +867,18 @@ void waveshare_ADS1256::trigger_sampling_async_impl(const data_handler &handler,
           &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
         bcm2835_delayMicroseconds(5);
 
-        CS_0();
+        bcm2835_spi_chipSelect(BCM2835_SPI_CS0);
+
         bcm2835_spi_transfer(CMD_SYNC);
-        CS_1();
         bcm2835_delayMicroseconds(5);
 
-        CS_0();
         bcm2835_spi_transfer(CMD_WAKEUP);
-        CS_1();
         bcm2835_delayMicroseconds(25);
 
-        CS_0();
         bcm2835_spi_transfer(CMD_RDATA);
         bcm2835_delayMicroseconds(10);
 
         bcm2835_spi_transfern(data_buffer,3);
-        CS_1();
 
         data_buffer += 3;
       }
@@ -960,22 +934,18 @@ void waveshare_ADS1256::trigger_sampling_async_wstat_impl(
       &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
     bcm2835_delayMicroseconds(5);
 
-    CS_0();
+    bcm2835_spi_chipSelect(BCM2835_SPI_CS0);
+
     bcm2835_spi_transfer(CMD_SYNC);
-    CS_1();
     bcm2835_delayMicroseconds(5);
 
-    CS_0();
     bcm2835_spi_transfer(CMD_WAKEUP);
-    CS_1();
     bcm2835_delayMicroseconds(25);
 
-    CS_0();
     bcm2835_spi_transfer(CMD_RDATA);
     bcm2835_delayMicroseconds(10);
 
     bcm2835_spi_transfern(dummy_buf,3);
-    CS_1();
   }
 
   time_point_type start_time = std::chrono::high_resolution_clock::now();
@@ -1005,22 +975,18 @@ void waveshare_ADS1256::trigger_sampling_async_wstat_impl(
           &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
         bcm2835_delayMicroseconds(5);
 
-        CS_0();
+        bcm2835_spi_chipSelect(BCM2835_SPI_CS0);
+
         bcm2835_spi_transfer(CMD_SYNC);
-        CS_1();
         bcm2835_delayMicroseconds(5);
 
-        CS_0();
         bcm2835_spi_transfer(CMD_WAKEUP);
-        CS_1();
         bcm2835_delayMicroseconds(25);
 
-        CS_0();
         bcm2835_spi_transfer(CMD_RDATA);
         bcm2835_delayMicroseconds(10);
 
         bcm2835_spi_transfern(data_buffer,3);
-        CS_1();
 
         std::chrono::high_resolution_clock::time_point now =
           std::chrono::high_resolution_clock::now();
