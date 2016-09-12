@@ -35,7 +35,7 @@
 #define DRDY  RPI_GPIO_P1_11
 #define RST   RPI_GPIO_P1_12
 #define PDWN  RPI_GPIO_P1_13
-#define SPICS RPI_GPIO_P1_15
+#define SPICS RPI_GPIO_P1_15 // WAVESHARE BOARD DOES NOT USE NORMAL SPICS!!
 
 #define CS_1() bcm2835_gpio_write(SPICS,HIGH)
 #define CS_0()  bcm2835_gpio_write(SPICS,LOW)
@@ -456,13 +456,9 @@ void waveshare_ADS1256::setup_com(void)
 
   bcm2835_spi_setClockDivider(bcm2835SPI_sentry->max_clock_divider());
 
-  // select SPI interface 0 for ADS1256 ADC
-  bcm2835_spi_chipSelect(BCM2835_SPI_CS0);
-
-  // Need to confirm with datasheet that this is LOW
-  bcm2835_spi_setChipSelectPolarity(BCM2835_SPI_CS0, LOW);
-
-  // set RPI_GPIO_P1_15 as output and set it high
+  // set RPI_GPIO_P1_15 (chip select) as output and set it high
+  // Waveshare board does not use normal RPI SPI chip select but rather maps
+  // it to RPI_GPIO_P1_15 for the ADC. CS is active low here.
   bcm2835_gpio_fsel(RPI_GPIO_P1_15, BCM2835_GPIO_FSEL_OUTP);
   bcm2835_gpio_write(RPI_GPIO_P1_15, HIGH);
 
