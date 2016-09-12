@@ -28,8 +28,10 @@ bin_PROGRAMS= \
         triggerpi
 
 triggerpi_SOURCES= \
+	bits.h \
 	bcm2835_sentry.h \
 	ADC_board.h \
+	DAC_board.h \
 	basic_trigger.h \
 	timed_trigger.h \
 	basic_screen_printer.h \
@@ -38,8 +40,10 @@ triggerpi_SOURCES= \
 	ADC_ops.cc \
 	waveshare_ADS1256_expansion.h \
 	waveshare_ADS1256_expansion.cc \
-        main.cc \
-	board_init.cc
+	waveshare_DAC8532_expansion.h \
+	waveshare_DAC8532_expansion.cc \
+        main.cc
+
 
 triggerpi_CFLAGS=$(additional_cflags)
 triggerpi_CPPFLAGS=$(additional_cppflags)

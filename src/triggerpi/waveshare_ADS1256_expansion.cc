@@ -1,11 +1,10 @@
 #include <config.h>
 
 #include "waveshare_ADS1256_expansion.h"
+#include "bits.h"
 
 #include <bcm2835.h>
 
-// for htonl
-#include <arpa/inet.h>
 
 #include <boost/utility/binary.hpp>
 #include <boost/lexical_cast.hpp>
@@ -451,7 +450,11 @@ void waveshare_ADS1256::setup_com(void)
   // Cycling throughput for 521 ns is 4374 with 30,000 SPS setting. Thus we
   // should expect to see lower performace. On my system, I achieve
   // ~0.24 ms sample period or about 4,166.6 interleaved samples per second
-  bcm2835_spi_setClockDivider(BCM2835_SPI_CLOCK_DIVIDER_256);
+//  bcm2835_spi_setClockDivider(BCM2835_SPI_CLOCK_DIVIDER_256);
+  bcm2835SPI_sentry->clock_divider_range((32768 | 16384 | 8192 | 4096 | 2048 |
+    1024 | 512 | 256));
+
+  bcm2835_spi_setClockDivider(bcm2835SPI_sentry->max_clock_divider());
 
   // select SPI interface 0 for ADS1256 ADC
   bcm2835_spi_chipSelect(BCM2835_SPI_CS0);
