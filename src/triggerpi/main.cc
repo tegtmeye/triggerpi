@@ -175,6 +175,16 @@ int main(int argc, char *argv[])
         "-2^22 to +2^22 for a unity gain (23-bits of precision) for a 0->5V "
         "input. If the gain is set to 2, then the ADC values will vary from "
         "-2^23 to +2^23 (24-bits of precision) for a 0->5V input")
+      ("ADC.waveshare.buffered",po::value<bool>()->default_value(false),
+        "  Enable/disable the ADS1256 analog input buffer. If enabled, then "
+        "the input impedance presented to the analog input will scale "
+        "according to the sampling frequency: 30 ksps to 2 ksps = ~10 MOhm, "
+        "1 ksps = ~20 MOhm, 500 to 60 sps = ~40 MOhm, and <= 50 sps = ~80 "
+        "MOhm. Default is disabled. NOTE: if enabled, then the voltage "
+        "difference between analog ground and any analog in must be below "
+        "AVDD-2V. Since the board is pre-configured for an AVDD of 5V, "
+        "AD0-AD7 must be below 3V. See the ADS1255/6 datasheet for more "
+        "information.")
      ("ADC.waveshare.sampleblocks",po::value<std::size_t>(),
         "  Override the number of samples to process in each block operation. "
         "This is a function of the number of channels currently configured, "
@@ -199,17 +209,7 @@ int main(int argc, char *argv[])
         "Unlisted pins will be turned off [preferred]. Examples:\n"
         "  To configure pins 1 for singled ended input and pin 3 and 4 "
         "for differential:\n"
-        "  --ADC.waveshare.channel 0,COM --ADC.waveshare.channel 2,3\n")
-      ("ADC.waveshare.buffered",po::value<bool>()->default_value(false),
-        "  Enable/disable the ADS1256 analog input buffer. If enabled, then "
-        "the input impedance presented to the analog input will scale "
-        "according to the sampling frequency: 30 ksps to 2 ksps = ~10 MOhm, "
-        "1 ksps = ~20 MOhm, 500 to 60 sps = ~40 MOhm, and <= 50 sps = ~80 "
-        "MOhm. Default is disabled. NOTE: if enabled, then the voltage "
-        "difference between analog ground and any analog in must be below "
-        "AVDD-2V. Since the board is pre-configured for an AVDD of 5V, "
-        "AD0-AD7 must be below 3V. See the ADS1255/6 datasheet for more "
-        "information.")
+        "  --ADC.waveshare.channel 0,COM\n  --ADC.waveshare.channel 2,3\n")
       ;
 
 

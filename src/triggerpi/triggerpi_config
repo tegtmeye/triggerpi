@@ -39,13 +39,11 @@ async=true
   # 30000, 15000, 7500, 3750, 2000, 1000, 500, 100, 60, 50, 30, 25, 15, 10, 5
   sample_rate=30000
 
-  # The Waveshare board has a single common reference for all single-ended
-  # ADC channels. This setting is used to provide ADC->voltage conversion. Value
-  # is in volts. If the jumper is connected from AINCOM to AGND, then this value
-  # should be 0 wich gives a full-scale-rage of 0->5V at unity gain. If
-  # for example, AINCOM is connected to 2.5V, then the voltage output is
-  # -2.5->2.5V at 23-bits of precision for a unity gain.
-  AINCOM=0.0
+  # The ADC programmable gain for all channels
+  #
+  # "gain" must be one of the following 7 possible gain settings
+  # 1, 2, 4, 8, 16, 32, 64
+  gain=1
 
   # The ADC1256 reference voltage. This value is nominally 2.5V based on the
   # board's included LM285-2.5 reference voltage. This value is likely not
@@ -58,11 +56,18 @@ async=true
   # the noise floor
   Vref=2.5
 
-  # The ADC programmable gain for all channels
-  #
-  # "gain" must be one of the following 7 possible gain settings
-  # 1, 2, 4, 8, 16, 32, 64
-  gain=1
+  # The Waveshare board has a single common reference for all single-ended
+  # ADC channels. This setting is used to provide ADC->voltage conversion. Value
+  # is in volts. If the jumper is connected from AINCOM to AGND, then this value
+  # should be 0 wich gives a full-scale-rage of 0->5V at unity gain. If
+  # for example, AINCOM is connected to 2.5V, then the voltage output is
+  # -2.5->2.5V at 23-bits of precision for a unity gain.
+  AINCOM=0.0
+
+  # The ADC1256 has the ability to provide a buffered input that will
+  # significantly increase the input impedance as a function of sample rate.
+  # If enabled, the input volage on all analog input pins must be below 3V.
+  buffered=0
 
   # Process N rows of sampled data at a time. This can affect sample-to-sample
   # non-uniformity depending on --async is enabled and the value of
