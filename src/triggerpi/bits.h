@@ -1,13 +1,17 @@
 /*
-    Bit/Byte utilities
+    Bit/Byte and other utilities
 */
 
 #ifndef BITS_H
 #define BITS_H
 
+#include <boost/program_options.hpp>
+
 #include <config.h>
 
 #include <cstdint>
+
+namespace detail {
 
 // Endian swap convenience functions
 inline std::uint16_t swap_bytes(std::uint16_t val)
@@ -106,6 +110,15 @@ inline T be_to_native(T val)
 #else
   return swap_bytes(val);
 #endif
+}
+
+// convenience function for verbosity
+template<unsigned int Level>
+inline bool is_verbose(const boost::program_options::variables_map &vm)
+{
+  return (vm.count("verbose") && vm["verbose"].as<unsigned int>() >= Level);
+}
+
 }
 
 

@@ -1,6 +1,6 @@
 #include <config.h>
 
-#include "waveshare_ADS1256_expansion.h"
+#include "waveshare_expansion.h"
 #include "bits.h"
 
 #include <bcm2835.h>
@@ -85,8 +85,6 @@ enum {
 
 namespace waveshare {
 
-namespace detail {
-
 // integer power function for base 10. Modified from:
 // http://stackoverflow.com/questions/101439/the-most-efficient-way-to-implement-an-integer-based-power-function-powint-int
 // Does not check for overflow or unsigned values
@@ -105,12 +103,12 @@ T ipow10(T exp)
     return result;
 }
 
-std::tuple<unsigned char,ADC_board::rational_type>
+std::tuple<unsigned char,expansion_board::rational_type>
 validate_translate_sample_rate(const po::variables_map &vm)
 {
   // 30000 is the default sample rate
   unsigned char code_result = BOOST_BINARY(11110000);
-  ADC_board::rational_type row_rate_result(30000,1);
+  expansion_board::rational_type row_rate_result(30000,1);
 
   if(vm.count("waveshare.sample_rate")) {
     const std::string &sample_rate =
@@ -119,67 +117,67 @@ validate_translate_sample_rate(const po::variables_map &vm)
     // Don't be overly clever. Just map to datasheet.
     if(sample_rate == "30000") {
       code_result = BOOST_BINARY(11110000);
-      row_rate_result = ADC_board::rational_type(30000,1);
+      row_rate_result = expansion_board::rational_type(30000,1);
     }
     else if(sample_rate == "15000") {
       code_result = BOOST_BINARY(11100000);
-      row_rate_result = ADC_board::rational_type(15000,1);
+      row_rate_result = expansion_board::rational_type(15000,1);
     }
     else if(sample_rate == "7500") {
       code_result = BOOST_BINARY(11010000);
-      row_rate_result = ADC_board::rational_type(7500,1);
+      row_rate_result = expansion_board::rational_type(7500,1);
     }
     else if(sample_rate == "3750") {
       code_result = BOOST_BINARY(11000000);
-      row_rate_result = ADC_board::rational_type(3750,1);
+      row_rate_result = expansion_board::rational_type(3750,1);
     }
     else if(sample_rate == "2000") {
       code_result = BOOST_BINARY(10110000);
-      row_rate_result = ADC_board::rational_type(2000,1);
+      row_rate_result = expansion_board::rational_type(2000,1);
     }
     else if(sample_rate == "1000") {
       code_result = BOOST_BINARY(10100001);
-      row_rate_result = ADC_board::rational_type(1000,1);
+      row_rate_result = expansion_board::rational_type(1000,1);
     }
     else if(sample_rate == "500") {
       code_result = BOOST_BINARY(10010010);
-      row_rate_result = ADC_board::rational_type(500,1);
+      row_rate_result = expansion_board::rational_type(500,1);
     }
     else if(sample_rate == "100") {
       code_result = BOOST_BINARY(10000010);
-      row_rate_result = ADC_board::rational_type(100,1);
+      row_rate_result = expansion_board::rational_type(100,1);
     }
     else if(sample_rate == "60") {
       code_result = BOOST_BINARY(01110010);
-      row_rate_result = ADC_board::rational_type(60,1);
+      row_rate_result = expansion_board::rational_type(60,1);
     }
     else if(sample_rate == "50") {
       code_result = BOOST_BINARY(01100011);
-      row_rate_result = ADC_board::rational_type(50,1);
+      row_rate_result = expansion_board::rational_type(50,1);
     }
     else if(sample_rate == "30") {
       code_result = BOOST_BINARY(01010011);
-      row_rate_result = ADC_board::rational_type(30,1);
+      row_rate_result = expansion_board::rational_type(30,1);
     }
     else if(sample_rate == "25") {
       code_result = BOOST_BINARY(01000011);
-      row_rate_result = ADC_board::rational_type(25,1);
+      row_rate_result = expansion_board::rational_type(25,1);
     }
     else if(sample_rate == "15") {
       code_result = BOOST_BINARY(00110011);
-      row_rate_result = ADC_board::rational_type(15,1);
+      row_rate_result = expansion_board::rational_type(15,1);
     }
     else if(sample_rate == "10") {
       code_result = BOOST_BINARY(00100011);
-      row_rate_result = ADC_board::rational_type(10,1);
+      row_rate_result = expansion_board::rational_type(10,1);
     }
     else if(sample_rate == "5") {
       code_result = BOOST_BINARY(00010011);
-      row_rate_result = ADC_board::rational_type(5,1);
+      row_rate_result = expansion_board::rational_type(5,1);
     }
     else if(sample_rate == "2.5") {
       code_result = BOOST_BINARY(00000011);
-      row_rate_result = ADC_board::rational_type(25,10);
+      row_rate_result = expansion_board::rational_type(25,10);
     }
     else {
       std::stringstream err;
@@ -230,13 +228,13 @@ validate_translate_gain(const po::variables_map &vm)
   return result;
 }
 
-ADC_board::rational_type validate_translate_Vref(const std::string Vref_str)
+expansion_board::rational_type validate_translate_Vref(const std::string Vref_str)
 {
-  typedef ADC_board::rational_type::int_type rint_type;
+  typedef expansion_board::rational_type::int_type rint_type;
 
   static const std::regex digits_regex("[0-9]*");
-  static const ADC_board::rational_type min_vref(5,10);
-  static const ADC_board::rational_type max_vref(26,10);
+  static const expansion_board::rational_type min_vref(5,10);
+  static const expansion_board::rational_type max_vref(26,10);
 
   rint_type integral = 0;
   rint_type decimal = 0;
@@ -317,7 +315,7 @@ ADC_board::rational_type validate_translate_Vref(const std::string Vref_str)
     throw std::runtime_error(err.str());
   }
 
-  ADC_board::rational_type result(integral*factor+decimal,factor);
+  expansion_board::rational_type result(integral*factor+decimal,factor);
 
   if(result < min_vref || max_vref < result) {
     std::stringstream err;
@@ -368,31 +366,49 @@ void write_to_registers(uint8_t reg_start, char *data, uint8_t num)
 }
 
 
-}
 
 
-waveshare_ADS1256::waveshare_ADS1256(const po::variables_map &vm)
- :ADC_board(vm), row_block(1), used_pins(9,0), _disabled(false)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+waveshare_expansion::waveshare_expansion(const po::variables_map &vm)
+ :expansion_board(vm), row_block(1), used_pins(9,0)
 {
   std::tie(_sample_rate_code,_row_sampling_rate) =
-    detail::validate_translate_sample_rate(vm);
-  std::tie(_gain_code,_gain) = detail::validate_translate_gain(vm);
+    validate_translate_sample_rate(vm);
+  std::tie(_gain_code,_gain) = validate_translate_gain(vm);
 }
 
 
-void waveshare_ADS1256::configure_options(void)
+void waveshare_expansion::configure_options(void)
 {
+  assert(did_register_config);
+
   // Set up channels. If there are no channels, then nothing to do.
-  if(_vm.count("Waveshare.ADC")) {
+  if(_vm.count("waveshare.ADC")) {
     const std::vector<std::string> &channel_vec =
-      _vm["Waveshare.ADC"].as< std::vector<std::string> >();
+      _vm["waveshare.ADC"].as< std::vector<std::string> >();
 
     for(std::size_t i=0; i<channel_vec.size(); ++i)
       validate_assign_channel(channel_vec[i]);
   }
-
-  if(channel_assignment.empty())
-    _disabled = true;
 
   if(!_vm.count("waveshare.AINCOM"))
     throw std::runtime_error("Missing Waveshare AINCOM value");
@@ -404,7 +420,7 @@ void waveshare_ADS1256::configure_options(void)
   if(!_vm.count("waveshare.Vref"))
     throw std::runtime_error("Missing Waveshare reference voltage");
 
-  _Vref = detail::validate_translate_Vref(
+  _Vref = validate_translate_Vref(
     _vm["waveshare.Vref"].as<std::string>());
 
   _async = (_vm.count("async") && _vm["async"].as<bool>());
@@ -424,7 +440,7 @@ void waveshare_ADS1256::configure_options(void)
 }
 
 
-void waveshare_ADS1256::setup_com(void)
+void waveshare_expansion::setup_com(void)
 {
   // delay initialization of these so that we can check configuration options
   // first
@@ -467,7 +483,7 @@ void waveshare_ADS1256::setup_com(void)
   bcm2835_gpio_set_pud(RPI_GPIO_P1_11, BCM2835_GPIO_PUD_UP);
 }
 
-void waveshare_ADS1256::initialize(void)
+void waveshare_expansion::initialize(void)
 {
   // probably should force reset first
 
@@ -488,15 +504,15 @@ void waveshare_ADS1256::initialize(void)
   //  Set the sample rate
   regs[3] = _sample_rate_code;
 
-  detail::write_to_registers(REG_STATUS,regs,4);
+  write_to_registers(REG_STATUS,regs,4);
 
   // ADC should now start to auto-cal, DRDY goes low when done
-  detail::wait_DRDY();
+  wait_DRDY();
 
 }
 
 
-void waveshare_ADS1256::trigger_sampling(const data_handler &handler,
+void waveshare_expansion::trigger_sampling(const data_handler &handler,
   basic_trigger &trigger)
 {
   if(_async) {
@@ -513,7 +529,7 @@ void waveshare_ADS1256::trigger_sampling(const data_handler &handler,
   }
 }
 
-void waveshare_ADS1256::validate_assign_channel(const std::string config_str)
+void waveshare_expansion::validate_assign_channel(const std::string config_str)
 {
   static const std::regex com_regex("com", std::regex_constants::icase);
 
@@ -595,9 +611,14 @@ void waveshare_ADS1256::validate_assign_channel(const std::string config_str)
 
   if(pinB < 8)
     used_pins.at(pinB) = true;
+
+  if(detail::is_verbose<1>(_vm)) {
+    std::cout << "Enabled ADC channel with configuration: " << pinA
+      << "," << pinB << "\n";
+  }
 }
 
-void waveshare_ADS1256::trigger_sampling_impl(const data_handler &handler,
+void waveshare_expansion::trigger_sampling_impl(const data_handler &handler,
   basic_trigger &trigger)
 {
   sample_buffer_type sample_buffer(
@@ -613,10 +634,10 @@ void waveshare_ADS1256::trigger_sampling_impl(const data_handler &handler,
     ++chan)
   {
     // 2,083.3328 usec max wait
-    detail::wait_DRDY();
+    wait_DRDY();
 
     // switch to the next channel
-    detail::write_to_registers(REG_MUX,
+    write_to_registers(REG_MUX,
       &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
     bcm2835_delayMicroseconds(5);
 
@@ -652,10 +673,10 @@ void waveshare_ADS1256::trigger_sampling_impl(const data_handler &handler,
     for(rows=0; rows<row_block && !trigger.should_stop(); ++rows) {
       for(std::size_t chan=0; chan<channel_assignment.size(); ++chan) {
         // 2,083.3328 usec max wait
-        detail::wait_DRDY();
+        wait_DRDY();
 
         // switch to the next channel
-        detail::write_to_registers(REG_MUX,
+        write_to_registers(REG_MUX,
           &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
         bcm2835_delayMicroseconds(5);
 
@@ -684,7 +705,7 @@ void waveshare_ADS1256::trigger_sampling_impl(const data_handler &handler,
   }
 }
 
-void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
+void waveshare_expansion::trigger_sampling_wstat_impl(const data_handler &handler,
   basic_trigger &trigger)
 {
   typedef std::chrono::high_resolution_clock::time_point time_point_type;
@@ -705,10 +726,10 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
     ++chan)
   {
     // 2,083.3328 usec max wait
-    detail::wait_DRDY();
+    wait_DRDY();
 
     // switch to the next channel
-    detail::write_to_registers(REG_MUX,
+    write_to_registers(REG_MUX,
       &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
     bcm2835_delayMicroseconds(5);
 
@@ -746,10 +767,10 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
     for(rows=0; rows<row_block && !trigger.should_stop(); ++rows) {
       for(std::size_t chan=0; chan<channel_assignment.size(); ++chan) {
         // 2,083.3328 usec max wait
-        detail::wait_DRDY();
+        wait_DRDY();
 
         // switch to the next channel
-        detail::write_to_registers(REG_MUX,
+        write_to_registers(REG_MUX,
           &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
         bcm2835_delayMicroseconds(5);
 
@@ -778,7 +799,7 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
             now-start_time).count();
 
         data_buffer += 3;
-        elapsed = ensure_be(elapsed);
+        elapsed = detail::ensure_be(elapsed);
         std::memcpy(data_buffer,&elapsed,time_size);
         data_buffer += time_size;
       }
@@ -788,7 +809,7 @@ void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
   }
 }
 
-void waveshare_ADS1256::async_handler(ringbuffer_type &allocation_ringbuffer,
+void waveshare_expansion::async_handler(ringbuffer_type &allocation_ringbuffer,
   ringbuffer_type &ready_ringbuffer, const data_handler &handler,
   std::atomic_int &done)
 {
@@ -804,7 +825,7 @@ void waveshare_ADS1256::async_handler(ringbuffer_type &allocation_ringbuffer,
 }
 
 
-void waveshare_ADS1256::trigger_sampling_async_impl(const data_handler &handler,
+void waveshare_expansion::trigger_sampling_async_impl(const data_handler &handler,
   basic_trigger &trigger)
 {
   static const std::size_t max_allocation = 32;
@@ -821,7 +842,7 @@ void waveshare_ADS1256::trigger_sampling_async_impl(const data_handler &handler,
 
   std::atomic_int done(false);
 
-  std::thread servicing_thread(&waveshare_ADS1256::async_handler,*this,
+  std::thread servicing_thread(&waveshare_expansion::async_handler,*this,
     std::ref(allocation_ringbuffer), std::ref(ready_ringbuffer),
     std::cref(handler), std::ref(done));
 
@@ -835,10 +856,10 @@ void waveshare_ADS1256::trigger_sampling_async_impl(const data_handler &handler,
     ++chan)
   {
     // 2,083.3328 usec max wait
-    detail::wait_DRDY();
+    wait_DRDY();
 
     // switch to the next channel
-    detail::write_to_registers(REG_MUX,
+    write_to_registers(REG_MUX,
       &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
     bcm2835_delayMicroseconds(5);
 
@@ -878,10 +899,10 @@ void waveshare_ADS1256::trigger_sampling_async_impl(const data_handler &handler,
     for(rows=0; rows<row_block && !trigger.should_stop(); ++rows) {
       for(std::size_t chan=0; chan<channel_assignment.size(); ++chan) {
         // 2,083.3328 usec max wait
-        detail::wait_DRDY();
+        wait_DRDY();
 
         // switch to the next channel
-        detail::write_to_registers(REG_MUX,
+        write_to_registers(REG_MUX,
           &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
         bcm2835_delayMicroseconds(5);
 
@@ -913,7 +934,7 @@ void waveshare_ADS1256::trigger_sampling_async_impl(const data_handler &handler,
   servicing_thread.join();
 }
 
-void waveshare_ADS1256::trigger_sampling_async_wstat_impl(
+void waveshare_expansion::trigger_sampling_async_wstat_impl(
   const data_handler &handler, basic_trigger &trigger)
 {
   typedef std::chrono::high_resolution_clock::time_point time_point_type;
@@ -935,7 +956,7 @@ void waveshare_ADS1256::trigger_sampling_async_wstat_impl(
 
   std::atomic_int done(false);
 
-  std::thread servicing_thread(&waveshare_ADS1256::async_handler,*this,
+  std::thread servicing_thread(&waveshare_expansion::async_handler,*this,
     std::ref(allocation_ringbuffer), std::ref(ready_ringbuffer),
     std::cref(handler), std::ref(done));
 
@@ -949,10 +970,10 @@ void waveshare_ADS1256::trigger_sampling_async_wstat_impl(
     ++chan)
   {
     // 2,083.3328 usec max wait
-    detail::wait_DRDY();
+    wait_DRDY();
 
     // switch to the next channel
-    detail::write_to_registers(REG_MUX,
+    write_to_registers(REG_MUX,
       &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
     bcm2835_delayMicroseconds(5);
 
@@ -994,10 +1015,10 @@ void waveshare_ADS1256::trigger_sampling_async_wstat_impl(
     for(rows=0; rows<row_block && !trigger.should_stop(); ++rows) {
       for(std::size_t chan=0; chan<channel_assignment.size(); ++chan) {
         // 2,083.3328 usec max wait
-        detail::wait_DRDY();
+        wait_DRDY();
 
         // switch to the next channel
-        detail::write_to_registers(REG_MUX,
+        write_to_registers(REG_MUX,
           &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
         bcm2835_delayMicroseconds(5);
 
@@ -1026,7 +1047,7 @@ void waveshare_ADS1256::trigger_sampling_async_wstat_impl(
             now-start_time).count();
 
         data_buffer += 3;
-        elapsed = ensure_be(elapsed);
+        elapsed = detail::ensure_be(elapsed);
         std::memcpy(data_buffer,&elapsed,time_size);
         data_buffer += time_size;
       }

@@ -2,8 +2,8 @@
     Abstract class for an ADC board
  */
 
-#ifndef ADC_BOARD_H
-#define ADC_BOARD_H
+#ifndef EXPANSION_BOARD_H
+#define EXPANSION_BOARD_H
 
 #include <config.h>
 
@@ -16,15 +16,94 @@
 
 #include <cstdint>
 #include <functional>
+#include <map>
+#include <iostream>
 
 namespace b = boost;
 namespace po = boost::program_options;
 namespace fs = boost::filesystem;
 
 
+class expansion_board;
 
-class ADC_board {
+struct basic_expansion_factory {
+  /*
+    Options to be available to the command line parser. As a convention,
+    each should be in the namespace specified by system_config_name. That is,
+    if the expansion config name is 'foo', then the board options should be
+    foo.option1, foo.option2, etc. This is not checked so be careful!
+  */
+  virtual po::options_description cmd_options(void) const = 0;
+
+  /*
+    The expansion name that will cause this expansion to be enabled. It is
+    checked for uniqueness. By convention, this name should be a prefix
+    followed by a period before each board option therefore it should be as
+    short and distinct as possible
+  */
+  virtual std::string system_config_name(void) const = 0;
+
+  /*
+    A short human readable to describe this expansion system. It is not checked
+    for uniqueness. Although can be longer then the value of
+    'system_config_name', it should not be more than about a line.
+  */
+  virtual std::string system_config_desc_short(void) const = 0;
+
+  /*
+    A human readable to describe this expansion system. It is not checked
+    for uniqueness. Although can be longer as needed, it should not be more
+    than a few lines.
+  */
+  virtual std::string system_config_desc_long(void) const = 0;
+
+  /*
+    Construct an object of the factory's expansion board type.
+  */
+  virtual expansion_board * construct(const po::variables_map &vm) const = 0;
+
+  /*
+    Clone this expansion factory for storage
+  */
+  virtual basic_expansion_factory * clone(void) const = 0;
+};
+
+template<typename T>
+struct expansion_factory : public basic_expansion_factory {
+  po::options_description cmd_options(void) const {
+    return T::cmd_options();
+  }
+
+  std::string system_config_name(void) const {
+    return T::system_config_name();
+  }
+
+  std::string system_config_desc_short(void) const {
+    return T::system_config_desc_short();
+  }
+
+  std::string system_config_desc_long(void) const {
+    return T::system_config_desc_long();
+  }
+
+  expansion_board * construct(const po::variables_map &vm) const {
+    return new T(vm);
+  }
+
+  expansion_factory * clone(void) const {
+    return new expansion_factory<T>();
+  }
+};
+
+class expansion_board {
   public:
+    typedef std::map<std::string,
+      std::shared_ptr<basic_expansion_factory> > factory_map_type;
+
+    static void register_expansion(const basic_expansion_factory &factory);
+    static const factory_map_type & factory_map(void);
+
+
     // All functions returning this rational type are exact as to preserve
     // downstream calculations such that significant figures can be applied
     // as appropriate. That is, if this value is 1/3, then it is exact. If
@@ -33,10 +112,11 @@ class ADC_board {
     // conversion.
     typedef b::rational<std::uint64_t> rational_type;
     typedef std::function<
-      bool(void *data, std::size_t rows, const ADC_board &board)> data_handler;
+      bool(void *data, std::size_t rows, const expansion_board &board)>
+        data_handler;
 
-    ADC_board(const po::variables_map &vm) :_vm(vm) {}
-    virtual ~ADC_board(void) {}
+    expansion_board(const po::variables_map &vm) :_vm(vm) {}
+    virtual ~expansion_board(void) {}
 
     // These member functions are called in this order
 
@@ -69,8 +149,9 @@ class ADC_board {
 
     // Board identifiers
 
-    // return the ADC board make and model
-    virtual std::string board_name(void) const = 0;
+    // return the system unique description in human readable form
+    // ie (make and model)
+    virtual std::string system_description(void) const = 0;
 
     // State information
 
@@ -127,15 +208,55 @@ class ADC_board {
 
   protected:
     const po::variables_map &_vm;
+
+  private:
+    static factory_map_type & _factory_map(void);
 };
 
 
 struct do_nothing_handler {
-  bool operator()(void *_data, std::size_t num_rows, const ADC_board &adc_board)
+  bool operator()(void *_data, std::size_t num_rows, const expansion_board &adc_board)
   {
     return false;
   }
 };
+
+inline void
+expansion_board::register_expansion(const basic_expansion_factory &factory)
+{
+  std::string config_name = factory.system_config_name();
+  if(_factory_map().count(config_name)) {
+    std::stringstream err;
+    err << "Expansion board configuration name clash for " << config_name;
+    throw std::logic_error(err.str());
+  }
+
+  _factory_map()[config_name] =
+    std::shared_ptr<basic_expansion_factory>(factory.clone());
+}
+
+inline const expansion_board::factory_map_type &
+expansion_board::factory_map(void)
+{
+  return _factory_map();
+}
+
+inline expansion_board::factory_map_type & expansion_board::_factory_map(void)
+{
+  static factory_map_type fmap;
+
+  return fmap;
+}
+
+// inline po::options_description expansion_board::registered_options(void)
+// {
+//   po::options_description result;
+//
+//   for (auto & cur : factory_map())
+//     result.add(cur.second.registered_options());
+//
+//   return result;
+// }
 
 
 #endif

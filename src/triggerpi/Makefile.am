@@ -30,18 +30,14 @@ bin_PROGRAMS= \
 triggerpi_SOURCES= \
 	bits.h \
 	bcm2835_sentry.h \
-	ADC_board.h \
-	DAC_board.h \
+	expansion_board.h \
 	basic_trigger.h \
 	timed_trigger.h \
 	basic_screen_printer.h \
 	basic_file_printer.h \
-	ADC_ops.h \
-	ADC_ops.cc \
-	waveshare_ADS1256_expansion.h \
-	waveshare_ADS1256_expansion.cc \
-	waveshare_DAC8532_expansion.h \
-	waveshare_DAC8532_expansion.cc \
+	waveshare_expansion.h \
+	waveshare_expansion.cc \
+	waveshare_expansion_config.cc \
         main.cc
 
 

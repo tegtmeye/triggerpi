@@ -1,12 +1,12 @@
 /*
-    Board particulars for the waveshare ADS1256 expansion board
+    Board particulars for the waveshare ADS1256/DAC8532 expansion board
  */
 
-#ifndef WAVESHARE_ADS1256_EXPANSION_H
-#define WAVESHARE_ADS1256_EXPANSION_H
+#ifndef WAVESHARE_EXPANSION_H
+#define WAVESHARE_EXPANSION_H
 
 
-#include "ADC_board.h"
+#include "expansion_board.h"
 #include "bcm2835_sentry.h"
 
 #include "basic_screen_printer.h"
@@ -21,15 +21,23 @@
 #include <vector>
 #include <atomic>
 
+namespace po = boost::program_options;
+
 namespace waveshare {
 
-class waveshare_ADS1256 :public ADC_board {
+class waveshare_expansion :public expansion_board {
   public:
     typedef basic_screen_printer<std::uint32_t,true,3> screen_printer_type;
     typedef basic_file_printer<std::uint32_t,true,3> file_printer_type;
     typedef do_nothing_handler null_consumer_type;
 
-    waveshare_ADS1256(const po::variables_map &vm);
+    // required expansion_factory functions
+    static po::options_description cmd_options(void);
+    static std::string system_config_name(void);
+    static std::string system_config_desc_short(void);
+    static std::string system_config_desc_long(void);
+
+    waveshare_expansion(const po::variables_map &vm);
 
     virtual void configure_options(void);
     virtual void setup_com(void);
@@ -38,7 +46,7 @@ class waveshare_ADS1256 :public ADC_board {
     virtual void trigger_sampling(const data_handler &handler,
       basic_trigger &trigger);
 
-    virtual std::string board_name(void) const;
+    virtual std::string system_description(void) const;
 
     virtual rational_type row_sampling_rate(void) const;
 
@@ -67,6 +75,9 @@ class waveshare_ADS1256 :public ADC_board {
     typedef std::shared_ptr<sample_buffer_type> sample_buffer_ptr;
     typedef b::lockfree::spsc_queue<sample_buffer_ptr> ringbuffer_type;
 
+    static bool register_config(void);
+    static const bool did_register_config;
+
     std::size_t row_block;
 
     unsigned char _sample_rate_code;
@@ -80,7 +91,6 @@ class waveshare_ADS1256 :public ADC_board {
     std::vector<char> channel_assignment;
     std::vector<int> used_pins;
 
-    bool _disabled;
     bool _async;
     bool _stats;
 
@@ -106,68 +116,93 @@ class waveshare_ADS1256 :public ADC_board {
       std::atomic_int &done);
 };
 
-inline std::string waveshare_ADS1256::board_name(void) const
+inline bool waveshare_expansion::register_config(void)
+{
+  expansion_board::register_expansion(expansion_factory<waveshare_expansion>());
+
+  return true;
+}
+
+inline std::string waveshare_expansion::system_config_name(void)
+{
+  return "waveshare";
+}
+
+inline std::string waveshare_expansion::system_config_desc_short(void)
 {
   return "Waveshare High-Precision AD/DA Board";
 }
 
-inline ADC_board::rational_type
-waveshare_ADS1256::row_sampling_rate(void) const
+inline std::string waveshare_expansion::system_config_desc_long(void)
+{
+  return "Waveshare High-Precision AD/DA Board based on the ADS1256 and "
+    "DAC8532";
+}
+
+
+
+inline std::string waveshare_expansion::system_description(void) const
+{
+  return system_config_desc_short();
+}
+
+inline expansion_board::rational_type
+waveshare_expansion::row_sampling_rate(void) const
 {
   return _row_sampling_rate;
 }
 
-inline std::uint32_t waveshare_ADS1256::bit_depth(void) const
+inline std::uint32_t waveshare_expansion::bit_depth(void) const
 {
   return 24;
 }
 
-inline bool waveshare_ADS1256::ADC_counts_signed(void) const
+inline bool waveshare_expansion::ADC_counts_signed(void) const
 {
   return true;
 }
 
-inline bool waveshare_ADS1256::ADC_counts_big_endian(void) const
+inline bool waveshare_expansion::ADC_counts_big_endian(void) const
 {
   return true;
 }
 
-inline ADC_board::rational_type
-waveshare_ADS1256::sensitivity(void) const
+inline expansion_board::rational_type
+waveshare_expansion::sensitivity(void) const
 {
   // sensitivity = 1/(2^23-1) * FSR/gain
   return (_Vref*2)*rational_type(1,8388607 * _gain);
 }
 
-inline std::uint32_t waveshare_ADS1256::enabled_channels(void) const
+inline std::uint32_t waveshare_expansion::enabled_channels(void) const
 {
   return channel_assignment.size();
 }
 
-inline bool waveshare_ADS1256::stats(void) const
+inline bool waveshare_expansion::stats(void) const
 {
   return _stats;
 }
 
-inline bool waveshare_ADS1256::disabled(void) const
+inline bool waveshare_expansion::disabled(void) const
 {
-  return _disabled;
+  return channel_assignment.empty();
 }
 
-inline waveshare_ADS1256::data_handler
-waveshare_ADS1256::screen_printer(void) const
+inline waveshare_expansion::data_handler
+waveshare_expansion::screen_printer(void) const
 {
   return screen_printer_type(*this);
 }
 
-inline waveshare_ADS1256::data_handler
-waveshare_ADS1256::file_printer(const fs::path &loc) const
+inline waveshare_expansion::data_handler
+waveshare_expansion::file_printer(const fs::path &loc) const
 {
   return file_printer_type(loc,*this);
 }
 
-inline waveshare_ADS1256::data_handler
-waveshare_ADS1256::null_consumer(void) const
+inline waveshare_expansion::data_handler
+waveshare_expansion::null_consumer(void) const
 {
   return null_consumer_type();
 }

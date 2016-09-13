@@ -3,7 +3,7 @@
 
 #include <config.h>
 
-#include "ADC_board.h"
+#include "expansion_board.h"
 
 #include <algorithm>
 #include <chrono>
@@ -21,9 +21,9 @@
  */
 template<typename NativeT, bool ADCBigEndian, std::size_t NBytes>
 struct basic_screen_printer {
-  basic_screen_printer(const ADC_board &adc_board);
+  basic_screen_printer(const expansion_board &adc_board);
 
-  bool operator()(void *_data, std::size_t num_rows, const ADC_board &adc_board)
+  bool operator()(void *_data, std::size_t num_rows, const expansion_board &adc_board)
   {
     static_assert(sizeof(NativeT) >= NBytes,
       "Native type must be larger then NBytes");
@@ -71,9 +71,9 @@ struct basic_screen_printer {
         std::memcpy(&elapsed,data,sizeof(std::chrono::nanoseconds::rep));
 
         if(ADCBigEndian)
-          elapsed = be_to_native(elapsed);
+          elapsed = detail::be_to_native(elapsed);
         else
-          elapsed = le_to_native(elapsed);
+          elapsed = detail::le_to_native(elapsed);
 
         data += sizeof(std::chrono::nanoseconds::rep);
 
@@ -98,7 +98,7 @@ struct basic_screen_printer {
 
 template<typename NativeT, bool ADCBigEndian, std::size_t NBytes>
 basic_screen_printer<NativeT,ADCBigEndian,NBytes>::basic_screen_printer(
-  const ADC_board &adc_board) :board_name(adc_board.board_name()),
+  const expansion_board &adc_board) :board_name(adc_board.system_description()),
     with_stats(adc_board.stats()),
     sensitivity(boost::rational_cast<double>(adc_board.sensitivity())),
     diff(adc_board.enabled_channels())
