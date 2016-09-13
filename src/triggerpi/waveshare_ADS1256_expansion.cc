@@ -112,9 +112,9 @@ validate_translate_sample_rate(const po::variables_map &vm)
   unsigned char code_result = BOOST_BINARY(11110000);
   ADC_board::rational_type row_rate_result(30000,1);
 
-  if(vm.count("ADC.waveshare.sample_rate")) {
+  if(vm.count("waveshare.sample_rate")) {
     const std::string &sample_rate =
-      vm["ADC.waveshare.sample_rate"].as<std::string>();
+      vm["waveshare.sample_rate"].as<std::string>();
 
     // Don't be overly clever. Just map to datasheet.
     if(sample_rate == "30000") {
@@ -200,8 +200,8 @@ validate_translate_gain(const po::variables_map &vm)
   // 1 is the default gain value
   std::tuple<unsigned char,std::uint32_t> result;
 
-  if(vm.count("ADC.waveshare.gain")) {
-    const std::string &gain = vm["ADC.waveshare.gain"].as<std::string>();
+  if(vm.count("waveshare.gain")) {
+    const std::string &gain = vm["waveshare.gain"].as<std::string>();
 
     // Don't be overly clever. Just map to datasheet.
     if(gain == "1")
@@ -313,7 +313,7 @@ ADC_board::rational_type validate_translate_Vref(const std::string Vref_str)
   }
   catch(const std::runtime_error &ex) {
     std::stringstream err;
-    err << "Unexpected value '" << ex.what() << "' in waveshare Vref config";
+    err << "Unexpected value '" << ex.what() << "' in Waveshare Vref config";
     throw std::runtime_error(err.str());
   }
 
@@ -383,9 +383,9 @@ waveshare_ADS1256::waveshare_ADS1256(const po::variables_map &vm)
 void waveshare_ADS1256::configure_options(void)
 {
   // Set up channels. If there are no channels, then nothing to do.
-  if(_vm.count("ADC.waveshare.channel")) {
+  if(_vm.count("Waveshare.ADC")) {
     const std::vector<std::string> &channel_vec =
-      _vm["ADC.waveshare.channel"].as< std::vector<std::string> >();
+      _vm["Waveshare.ADC"].as< std::vector<std::string> >();
 
     for(std::size_t i=0; i<channel_vec.size(); ++i)
       validate_assign_channel(channel_vec[i]);
@@ -394,32 +394,32 @@ void waveshare_ADS1256::configure_options(void)
   if(channel_assignment.empty())
     _disabled = true;
 
-  if(!_vm.count("ADC.waveshare.AINCOM"))
+  if(!_vm.count("waveshare.AINCOM"))
     throw std::runtime_error("Missing Waveshare AINCOM value");
 
-  aincom = _vm["ADC.waveshare.AINCOM"].as<double>();
+  aincom = _vm["waveshare.AINCOM"].as<double>();
 
-  buffer_enabled = _vm["ADC.waveshare.buffered"].as<bool>();
+  buffer_enabled = _vm["waveshare.buffered"].as<bool>();
 
-  if(!_vm.count("ADC.waveshare.Vref"))
+  if(!_vm.count("waveshare.Vref"))
     throw std::runtime_error("Missing Waveshare reference voltage");
 
   _Vref = detail::validate_translate_Vref(
-    _vm["ADC.waveshare.Vref"].as<std::string>());
+    _vm["waveshare.Vref"].as<std::string>());
 
   _async = (_vm.count("async") && _vm["async"].as<bool>());
 
   _stats = (_vm.count("stats") && _vm["stats"].as<bool>());
 
-  if(_vm.count("ADC.waveshare.sampleblocks"))
-    row_block = _vm["ADC.waveshare.sampleblocks"].as<std::size_t>();
+  if(_vm.count("waveshare.sampleblocks"))
+    row_block = _vm["waveshare.sampleblocks"].as<std::size_t>();
   else if(_async)
     row_block = 1024;
   else
     row_block = 10;
 
   if(!row_block)
-    throw std::runtime_error("ADC.waveshare.sampleblocks must be a positive "
+    throw std::runtime_error("waveshare.sampleblocks must be a positive "
       "integer");
 }
 
@@ -456,13 +456,9 @@ void waveshare_ADS1256::setup_com(void)
 
   bcm2835_spi_setClockDivider(bcm2835SPI_sentry->max_clock_divider());
 
-  // select SPI interface 0 for ADS1256 ADC
-  bcm2835_spi_chipSelect(BCM2835_SPI_CS0);
-
-  // Need to confirm with datasheet that this is LOW
-  bcm2835_spi_setChipSelectPolarity(BCM2835_SPI_CS0, LOW);
-
   // set RPI_GPIO_P1_15 as output and set it high
+  // Waveshare board does not use the normal SPI CS lines but rather uses
+  // GPIO 15 for the ADC slave select requiring manual asserting
   bcm2835_gpio_fsel(RPI_GPIO_P1_15, BCM2835_GPIO_FSEL_OUTP);
   bcm2835_gpio_write(RPI_GPIO_P1_15, HIGH);
 
@@ -585,8 +581,8 @@ void waveshare_ADS1256::validate_assign_channel(const std::string config_str)
     }
     else {
       std::stringstream err;
-      err << "unexpected '" << substr << "' in channel assignment. Channel "
-        "directives should be of the form ADC.channel=pinA,pinB";
+      err << "unexpected '" << substr << "' in ADC channel assignment. "
+        "ADC Channel directives should be of the form waveshare.ADC=pinA,pinB";
       throw std::runtime_error(err.str());
     }
   }

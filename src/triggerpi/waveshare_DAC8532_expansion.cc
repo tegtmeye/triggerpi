@@ -96,21 +96,15 @@ void waveshare_DAC8532::setup_com(void)
   bcm2835SPI_sentry->clock_divider_range((32768 | 16384 | 8192 | 4096 | 2048 |
     1024 | 512 | 256 | 128 | 64 | 32 | 16));
 
+  assert(bcm2835SPI_sentry->clock_divider_range());
+
   bcm2835_spi_setClockDivider(bcm2835SPI_sentry->max_clock_divider());
 
-  // select SPI interface 0 for ADS1256 ADC
-  bcm2835_spi_chipSelect(BCM2835_SPI_CS0);
-
-  // Need to confirm with datasheet that this is LOW
-  bcm2835_spi_setChipSelectPolarity(BCM2835_SPI_CS0, LOW);
-
-  // set RPI_GPIO_P1_15 as output and set it high
-  bcm2835_gpio_fsel(RPI_GPIO_P1_15, BCM2835_GPIO_FSEL_OUTP);
-  bcm2835_gpio_write(RPI_GPIO_P1_15, HIGH);
-
-  // set RPI_GPIO_P1_11 ans INPUT and set as pull-up resistor
-  bcm2835_gpio_fsel(RPI_GPIO_P1_11, BCM2835_GPIO_FSEL_INPT);
-  bcm2835_gpio_set_pud(RPI_GPIO_P1_11, BCM2835_GPIO_PUD_UP);
+  // set RPI_GPIO_P1_16 as output and set it high
+  // Waveshare board does not use the normal SPI CS lines but rather uses
+  // GPIO 16 for the DAC slave select requiring manual asserting
+  bcm2835_gpio_fsel(RPI_GPIO_P1_16, BCM2835_GPIO_FSEL_OUTP);
+  bcm2835_gpio_write(RPI_GPIO_P1_16, HIGH);
 }
 
 void waveshare_DAC8532::initialize(void)

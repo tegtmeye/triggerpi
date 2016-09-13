@@ -110,8 +110,8 @@ int main(int argc, char *argv[])
       ("stats",po::value<bool>()->default_value(true),
         "  Collect statistics on system performance. For the ADC, this "
         "means that the per-sample delay is recorded.")
-      ("ADC.system",po::value<std::string>(),
-        "  ADC system to configure and use. Exactly one of:\n"
+      ("system,s",po::value<std::string>(),
+        "  Expansion system to configure and use. Exactly one of:\n"
         "  'waveshare' - The Waveshare High Precision ADC/DAC expansion board"
         " based on the ADS1256 24-bit ADC and the DAC8532 16-bit DAC. "
         "NOTE: Currently this is the only supported system.")
@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
     po::options_description waveshare_config(
       "Waveshare ADC/DA Config Options");
     waveshare_config.add_options()
-      ("ADC.waveshare.sample_rate",po::value<std::string>(),
+      ("waveshare.sample_rate",po::value<std::string>(),
         "  Set the sample rate. Actual data rates depend on the number of "
         "channels to read. For the ADS1256 ADC chip, each channel is "
         "multiplexed using a single ADC core. Each additional channel "
@@ -153,17 +153,17 @@ int main(int argc, char *argv[])
         "       2.5      ~?\n"
         "Currently rates below about 60 may cause a timeout error waiting "
         "for data to be ready on the ADC. This is a bug and needs to be fixed.")
-      ("ADC.waveshare.gain",po::value<std::string>(),
+      ("waveshare.gain",po::value<std::string>(),
         "  Set the gain for the configured ADC. Valid values are one of 1 "
         "[default], 2, 4, 8, 16, 32, or 64.")
-      ("ADC.waveshare.Vref",po::value<std::string>()->default_value("2.5"),
+      ("waveshare.Vref",po::value<std::string>()->default_value("2.5"),
         "  Set the ADC reference voltage. This is the positive voltage "
         "difference between pin 4 and pin 3 on the ADS1256 ADC chip itself. "
         "This setting is only needed if you have actually measured the "
         "voltage difference between these two pins and you need a higher-"
         "accuracy measurement. The nominal value for these boards is 2.5V. "
         "This only affects voltage calculations")
-      ("ADC.waveshare.AINCOM",po::value<double>()->default_value(0.0),
+      ("waveshare.AINCOM",po::value<double>()->default_value(0.0),
         "  Set the ADC center voltage for single-ended inputs. This value is "
         "only meaningful for ADC count to voltage conversions. That is, the "
         "ADC counts will be centered around the AINCOM voltage input "
@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
         "-2^22 to +2^22 for a unity gain (23-bits of precision) for a 0->5V "
         "input. If the gain is set to 2, then the ADC values will vary from "
         "-2^23 to +2^23 (24-bits of precision) for a 0->5V input")
-      ("ADC.waveshare.buffered",po::value<bool>()->default_value(false),
+      ("waveshare.buffered",po::value<bool>()->default_value(false),
         "  Enable/disable the ADS1256 analog input buffer. If enabled, then "
         "the input impedance presented to the analog input will scale "
         "according to the sampling frequency: 30 ksps to 2 ksps = ~10 MOhm, "
@@ -185,16 +185,16 @@ int main(int argc, char *argv[])
         "AVDD-2V. Since the board is pre-configured for an AVDD of 5V, "
         "AD0-AD7 must be below 3V. See the ADS1255/6 datasheet for more "
         "information.")
-     ("ADC.waveshare.sampleblocks",po::value<std::size_t>(),
+     ("waveshare.sampleblocks",po::value<std::size_t>(),
         "  Override the number of samples to process in each block operation. "
         "This is a function of the number of channels currently configured, "
         "whether or not asynchronous operations are enabled, and is affected "
         "by system memory. This value must be a positive integer greater than "
         "one.")
-     ("ADC.waveshare.channel",
+     ("waveshare.ADC",
         po::value<std::vector<std::string> >(),
         "  Configure each ADC channel. There can be multiple occurrences "
-        "of ADC.channel as need to configure the desired input. For the "
+        "of waveshare.ADC as need to configure the desired input. For the "
         "Waveshare ADC/DA expansion board, there are 9 pins that can be "
         "configured as up to eight single-ended channels, up to four "
         "differential channels, or any combination thereof. The pins are "
@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
         "Unlisted pins will be turned off [preferred]. Examples:\n"
         "  To configure pins 1 for singled ended input and pin 3 and 4 "
         "for differential:\n"
-        "  --ADC.waveshare.channel 0,COM\n  --ADC.waveshare.channel 2,3\n")
+        "  --waveshare.ADC 0,COM\n  --waveshare.ADC 2,3\n")
       ;
 
 

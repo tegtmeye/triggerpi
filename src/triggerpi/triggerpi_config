@@ -20,18 +20,18 @@ duration=-1
 # Hint to use multiple threads [default]
 async=true
 
-## ADC configuration options
-[ADC]
-  # The Waveshare ADC is a ADS1256 8-channel single, 4-channel differential
-  # ADC.
-  system=waveshare
+## System configuration options
+
+# The Waveshare ADC is a ADS1256 8-channel single, 4-channel differential
+# ADC. Currently only supported system.
+system=waveshare
 
 ## All configuration options other than --system are optional as there are
 ## reasonable default values. The options are explicitly provided here for
 ## exposition
 
-# Waveshare High-Precision ADC/DA expansion board configuraiton
-[ADC.waveshare]
+# Waveshare High-Precision ADC/DA expansion board configuration
+[waveshare]
 
   # The ADC sampling rate for all channels
   #
@@ -70,8 +70,8 @@ async=true
   buffered=0
 
   # Process N rows of sampled data at a time. This can affect sample-to-sample
-  # non-uniformity depending on --async is enabled and the value of
-  # --sample_rate, and the number of configured channels. The default is 2
+  # non-uniformity depending on if 'async' is enabled, the value of
+  # 'sample_rate', and the number of configured ADC channels. The default is 2
   # for non-asynchronous output to screen.
   sampleblocks=2
 
@@ -79,7 +79,7 @@ async=true
   #
   # The ADS1256 can be configured as 8 single-ended or 4 differential channels
   # In any combination.
-  channel=0,COM
+  ADC=0,COM
 
 
 
