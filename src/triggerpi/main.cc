@@ -2,8 +2,9 @@
 
 #include "bits.h"
 #include "expansion_board.h"
-#include "waveshare_expansion.h"
-#include "timed_trigger.h"
+#include "waveshare_ADS1256.h"
+#include "timed_trigger.h" // to remove
+#include "immediate_trigger.h"
 
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
@@ -15,6 +16,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <thread>
 
 namespace b = boost;
 namespace fs = boost::filesystem;
@@ -24,8 +26,8 @@ namespace po = boost::program_options;
 #error missing TRIGGERPI_SITE_CONFIGDIR
 #endif
 
-
-void enable_adc(const po::variables_map &vm);
+typedef std::map<std::string,
+  std::shared_ptr<expansion_board> > expansion_map_type;
 
 // attempt to get user defaults directory in a platform agnostic way
 fs::path user_pref_dir(void)
@@ -42,6 +44,124 @@ fs::path user_pref_dir(void)
     pref_dir = (fs::path(hdrive)/fs::path(hpath));
 
   return pref_dir;
+}
+
+std::pair<std::size_t, std::shared_ptr<expansion_board> >
+parse_trigger_source(const expansion_map_type &expansion_map,
+  const std::string &raw_str)
+{
+  std::string board_str;
+  size_t trigger_id = 0;
+  std::size_t count_tag_loc = raw_str.find('#');
+  if(count_tag_loc != std::string::npos) {
+    board_str = raw_str.substr(0,count_tag_loc);
+    std::string raw_id = raw_str.substr(count_tag_loc+1);
+    std::size_t unconverted = 0;
+    try {
+      trigger_id = stoull(raw_id,&unconverted);
+    }
+    catch(const std::exception &) {
+      // conversion errors will be caught by incorrect 'unconverted'
+    }
+
+    if(unconverted != raw_id.size()) {
+      std::stringstream err;
+      err << "Expected nonnegative integer for expansion board trigger "
+        "id. Received '" << raw_id << "'";
+      throw std::runtime_error(err.str());
+    }
+  }
+  else
+    board_str = raw_str;
+
+  std::shared_ptr<expansion_board> expansion;
+  if(board_str == "immediate") {
+    expansion.reset(new immediate_trigger());
+  }
+  else {
+    expansion_map_type::const_iterator res = expansion_map.find(board_str);
+
+    if(res == expansion_map.end()) {
+      std::stringstream err;
+      err << "Unknown expansion system: '" << board_str << "' used as "
+        "a trigger";
+      throw std::runtime_error(err.str());
+    }
+
+    expansion = res->second;
+  }
+
+  return std::make_pair(trigger_id,expansion);
+}
+
+std::pair<std::size_t, std::shared_ptr<expansion_board> >
+parse_trigger_sink(const expansion_map_type &expansion_map,
+  const std::string &raw_str)
+{
+  std::string board_str;
+  size_t trigger_id = 0;
+  std::size_t count_tag_loc = raw_str.find('#');
+  if(count_tag_loc != std::string::npos) {
+    board_str = raw_str.substr(0,count_tag_loc);
+    std::string raw_id = raw_str.substr(count_tag_loc+1);
+    std::size_t unconverted = 0;
+    try {
+      trigger_id = stoull(raw_id,&unconverted);
+    }
+    catch(const std::exception &) {
+      // conversion errors will be caught by incorrect 'unconverted'
+    }
+
+    if(unconverted != raw_id.size()) {
+      std::stringstream err;
+      err << "Expected nonnegative integer for expansion board trigger "
+        "id. Received '" << raw_id << "'";
+      throw std::runtime_error(err.str());
+    }
+  }
+  else
+    board_str = raw_str;
+
+  expansion_map_type::const_iterator res = expansion_map.find(board_str);
+
+  if(res == expansion_map.end()) {
+    std::stringstream err;
+    err << "Unknown expansion system: '" << board_str << "' used as "
+      "a trigger";
+    throw std::runtime_error(err.str());
+  }
+
+  return std::make_pair(trigger_id,res->second);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+void run_expansion_board(const std::shared_ptr<expansion_board> &expansion)
+{
+  try {
+    if(expansion->disabled())
+      return;
+
+    expansion->setup_com();
+    expansion->initialize();
+    expansion->run();
+  }
+  catch(const std::exception &e) {
+    std::cerr << e.what() << "\n";
+  }
+  catch (...) {
+    std::cerr << "Unknown error\n";
+    abort();
+  }
 }
 
 int main(int argc, char *argv[])
@@ -93,7 +213,9 @@ int main(int argc, char *argv[])
 
     // build the help string for the list of registered expansion systems
     std::stringstream system_help;
-    system_help << "Expansion system to configure and use. Exactly one of:\n";
+    system_help << "Enable expansion system ARG. Specify as many as "
+      "necessary\n";
+
     for (auto & cur : registered_expansion)
       system_help << "  '" << cur.second->system_config_name() << "' - "
         << cur.second->system_config_desc_long() << "\n";
@@ -123,7 +245,35 @@ int main(int argc, char *argv[])
       ("stats",po::value<bool>()->default_value(true),
         "  Collect statistics on system performance. For the ADC, this "
         "means that the per-sample delay is recorded.")
-      ("system,s",po::value<std::string>(),system_help_str.c_str())
+      ("system,s",po::value<std::vector<std::string> >(),
+        system_help_str.c_str())
+      ("tsource",po::value<std::vector<std::string> >(),
+        "  Set the trigger source with [id] to be [arg]. The trigger id is a "
+        "positive and not necessarily sequential integer separated by the "
+        "source with the '#' character. For example, the "
+        "'foo' system is set to be a trigger source for trigger id '5', [arg] "
+        "would be: 'foo#5'. If the id is missing, then the trigger is assumed "
+        "to have id '0'. The system must be the name of a system previously "
+        "set under --system or one of the following built-in sources:\n"
+        "    'immediate' - all sinks will be triggered immediately and will "
+        "continue until program exit.\n"
+//         "    [timespec] - the sink will be triggered according to the given "
+//         "timespec. If the timespec is an absolute time then "
+//         "the sinks will be triggered not before that time. If "
+//         "the timespec is a relative time, the sinks will be "
+//         "triggered no earlier than program execution start "
+//         "plus [timespec].\n"
+        "    N.B. A trigger sink must be configured for the "
+        "system to be notified. See --tsink.")
+      ("tsink",po::value<std::vector<std::string> >(),
+        "  Set the trigger sink with [id] to be [arg]. The trigger id is a "
+        "positive and not necessarily sequential integer separated by the "
+        "source with the '#' character. For example, the "
+        "'foo' system is set to be a trigger source for trigger id '5', [arg] "
+        "would be: 'foo#5'. If the id is missing, then the trigger is assumed "
+        "to have id '0'. The system must be the name of a system previously "
+        "set under --system. A trigger source must be configured for the "
+        "system to be notified. See --tsource.")
       ;
 
 
@@ -203,7 +353,7 @@ int main(int argc, char *argv[])
         }
       }
       else if(detail::is_verbose<3>(vm)) {
-        std::cout << "FAILED!\nNonexistant or non-regular user configuration"
+        std::cout << "FAILED!\nNonexistant or non-regular user configuration "
           "file: " << user_config_path << ", skipping\n";
       }
 
@@ -236,7 +386,6 @@ int main(int argc, char *argv[])
         std::cout << "FAILED!\nNonexistant or non-regular site configuration"
           "file: " << site_config_path << ", skipping\n";
       }
-
     }
     else {
       // User provided a config file. Overlay it with the command line args
@@ -280,35 +429,112 @@ int main(int argc, char *argv[])
     }
 
     // check for required configuration items
-    if(!vm.count("system") || vm["system"].as<std::string>().empty())
+
+    // determine and instantiate expansion system
+    typedef std::vector<std::string> stringvec;
+
+    expansion_map_type expansion_map;
+    std::vector<std::thread> thread_vec;
+
+    if(!vm.count("system"))
       throw std::runtime_error("Missing system configuration item");
 
-    const std::string &system = vm["system"].as<std::string>();
+    const std::vector<std::string> &systemvec =
+      vm["system"].as<std::vector<std::string> >();
 
-    std::shared_ptr<expansion_board> expansion_system;
+    for (auto & system : systemvec) {
+      if(!registered_expansion.count(system)) {
+        std::stringstream err;
+        err << "Unknown expansion system: '" << system << "'";
+        throw std::runtime_error(err.str());
+      }
 
+      if(expansion_map.find(system) != expansion_map.end()) {
+        std::stringstream err;
+        err << "Duplicate system: '" << system << "'";
+        throw std::runtime_error(err.str());
+      }
 
+      std::shared_ptr<expansion_board> expansion(
+        registered_expansion.at(system)->construct(vm));
 
-    if(!registered_expansion.count(system)) {
-      std::stringstream err;
-      err << "Unknown expansion system: '" << system << "'";
-      throw std::runtime_error(err.str());
+      expansion_map[system] = expansion;
     }
 
-    expansion_system.reset(registered_expansion.at(system)->construct(vm));
+    std::map<std::size_t,std::shared_ptr<expansion_board> > trigger_sources;
+    std::map<std::size_t,
+      std::vector<std::shared_ptr<expansion_board> > > trigger_sinks;
 
-    if(detail::is_verbose<1>(vm))
-      std::cout << "Enabling "
-        << registered_expansion.at(system)->system_config_desc_short() << "\n";
+    if(vm.count("tsource")) {
+      const std::vector<std::string> &tsource_vec =
+        vm["tsource"].as<std::vector<std::string> >();
 
-    expansion_system->configure_options();
+      for(auto & tsource : tsource_vec) {
+        std::pair<std::size_t,std::shared_ptr<expansion_board> > result =
+          parse_trigger_source(expansion_map,tsource);
 
-    if(expansion_system->disabled()) {
-      std::cout << "Nothing to do! Check configuration settings for the chosen "
-        "system\n";
-      return 0;
+        if(trigger_sources.find(result.first) != trigger_sources.end()) {
+          std::cerr << "Warning: duplicate trigger source id "
+            << result.first << " given in : '" << tsource << "'\n";
+        }
+
+        trigger_sources.insert(result);
+
+        if(detail::is_verbose<1>(vm))
+          std::cout << "Registered trigger source: '" << tsource << "\n";
+      }
     }
 
+
+    if(vm.count("tsink")) {
+      const std::vector<std::string> &tsink_vec =
+        vm["tsink"].as<std::vector<std::string> >();
+
+      for(auto & tsink : tsink_vec) {
+        std::pair<std::size_t,std::shared_ptr<expansion_board> > result =
+          parse_trigger_sink(expansion_map,tsink);
+
+        trigger_sinks[result.first].emplace_back(result.second);
+
+        if(detail::is_verbose<1>(vm))
+          std::cout << "Registered trigger sink: '" << tsink << "\n";
+      }
+    }
+
+    // configure options for all. Must be done before registering the sinks
+    for(auto & pair : expansion_map)
+      pair.second->configure_options(vm);
+
+    // register the sinks with all of the sources
+    for(auto & psource : trigger_sources) {
+      auto sink_iter = trigger_sinks.find(psource.first);
+      if(sink_iter != trigger_sinks.end()) {
+        for(auto &psink : sink_iter->second) {
+          psource.second->configure_trigger_sink(psink);
+        }
+      }
+      else {
+        std::cerr << "Warning: configured trigger source id "
+          << psource.first << " has no sinks\n";
+      }
+    }
+
+    for(auto & pair : expansion_map)
+      thread_vec.push_back(std::thread(run_expansion_board,pair.second));
+
+    for(auto & thread : thread_vec)
+      thread.join();
+
+    for(auto & pair : expansion_map)
+      pair.second->finalize();
+
+
+
+
+
+
+#if 0
+    // configure trigger
     std::unique_ptr<basic_trigger> trigger;
 
     double duration = vm["duration"].as<double>();
@@ -330,18 +556,13 @@ int main(int argc, char *argv[])
     }
 
 
+    // set up data handler
+    expansion_board::data_handler hdlr;
+
     if(vm.count("outfile")) {
       try {
-        expansion_board::data_handler hdlr =
-          expansion_system->file_printer(
+        hdlr = expansion_system->file_printer(
             fs::path(vm["outfile"].as<std::string>()));
-
-        if(!hdlr)
-          throw std::runtime_error("Unsupported output mode for this system");
-
-        expansion_system->setup_com();
-        expansion_system->initialize();
-        expansion_system->trigger_sampling(hdlr,*trigger);
       }
       catch(const fs::filesystem_error &ex) {
         std::stringstream err;
@@ -351,21 +572,19 @@ int main(int argc, char *argv[])
       }
     }
     else {
-      expansion_board::data_handler hdlr;
-
-      // don't produce anything if silent
-      if(vm.count("silent"))
-        hdlr = expansion_system->null_consumer();
-      else
-        hdlr = expansion_system->screen_printer();
-
-      if(!hdlr)
-        throw std::runtime_error("Unsupported output mode for this ADC board");
-
-      expansion_system->setup_com();
-      expansion_system->initialize();
-      expansion_system->trigger_sampling(hdlr,*trigger);
+      hdlr = expansion_system->screen_printer();
     }
+
+    // Setup communications, initialize, and go
+    expansion_system->setup_com();
+    expansion_system->initialize();
+//    expansion_system->trigger_sampling(hdlr,*trigger);
+
+    expansion_system->start();
+
+    expansion_system->finalize();
+
+#endif
   }
   catch(const std::exception &e) {
     std::cerr << e.what() << "\n";

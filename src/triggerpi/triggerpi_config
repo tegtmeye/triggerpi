@@ -2,8 +2,8 @@
 ## place your own in ~/.triggerpi or to override these values with your own.
 ## All options can be given on the command line using the '--' switch and are
 ## tiered hierarchically by the values in brackets separated by periods. That
-## is, to set the system, use --ADC.system=... and to set the sample_rate for
-## the waveshare ADC board, use --ADC.waveshare.sample_rate=... See --help
+## is, to set the system, use --system=... and to set the sample_rate for
+## the waveshare ADC board, use --waveshare_ADC.sample_rate=... See --help
 ## for more information.
 
 ## Global configuration options
@@ -24,14 +24,14 @@ async=true
 
 # The Waveshare ADC is a ADS1256 8-channel single, 4-channel differential
 # ADC. Currently only supported system.
-system=waveshare
+system=waveshare_ADC
 
 ## All configuration options other than --system are optional as there are
 ## reasonable default values. The options are explicitly provided here for
 ## exposition
 
-# Waveshare High-Precision ADC/DA expansion board configuration
-[waveshare]
+# Waveshare High-Precision ADC expansion board configuration
+[waveshare_ADC]
 
   # The ADC sampling rate for all channels
   #

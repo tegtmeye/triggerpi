@@ -49,7 +49,7 @@ class waveshare_DAC8532 :public DAC_board {
     // Ready the sytem to handle data.
     // Pre: communications is set up for this system (see setup_com)
     // Post: The system is ready to handle data
-    virtual void initialize(void);
+    virtual void DAC_initialize(void);
 
 
 

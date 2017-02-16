@@ -1,5 +1,5 @@
 /*
-    Abstract class for an ADC board
+    Abstract class for an expansion board
  */
 
 #ifndef EXPANSION_BOARD_H
@@ -8,7 +8,7 @@
 #include <config.h>
 
 #include "bits.h"
-#include "basic_trigger.h"
+#include "basic_trigger.h" // needs to go away
 
 #include <boost/program_options.hpp>
 #include <boost/rational.hpp>
@@ -16,8 +16,8 @@
 
 #include <cstdint>
 #include <functional>
-#include <map>
-#include <iostream>
+#include <set>
+#include <atomic>
 
 namespace b = boost;
 namespace po = boost::program_options;
@@ -95,6 +95,7 @@ struct expansion_factory : public basic_expansion_factory {
   }
 };
 
+
 class expansion_board {
   public:
     typedef std::map<std::string,
@@ -115,7 +116,6 @@ class expansion_board {
       bool(void *data, std::size_t rows, const expansion_board &board)>
         data_handler;
 
-    expansion_board(const po::variables_map &vm) :_vm(vm) {}
     virtual ~expansion_board(void) {}
 
     // These member functions are called in this order
@@ -124,28 +124,54 @@ class expansion_board {
     // to bringing up the board
     // Pre: none
     // Post: none
-    virtual void configure_options(void) = 0;
+    virtual void configure_options(const po::variables_map &) {}
+
+    // This function is called prior to calling \c setup_com. If this
+    // function returns true, then no further calls will be made to this
+    // object.
+    // Pre: configure_options has been called
+    // Post: If true, setup_com through finalize will be called
+    virtual bool disabled(void) const {return false;}
 
     // setup and enable whatever communication mechanism is needed to talk to
-    // this ADC system.
+    // this system.
     // Pre: none
-    // Post: The ADC is set up for communication only
-    virtual void setup_com(void) = 0;
+    // Post: The system is set up for communication only
+    virtual void setup_com(void) {}
 
-    // Ready the sytem to collect data.
-    // Pre: communications is set up for this ADC (see setup_com_
-    // Post: The ADC is ready to collect data once triggered
-    virtual void initialize(void) = 0;
+    /*
+      Ready the sytem to begin to function.
+      Pre: communications is set up for this system (see setup_com)
+      Post: The board is ready to function
+    */
+    virtual void initialize(void) {}
 
-    // Start sampling the ADC. The callback will be called with the first
-    // argument a pointer of a n dimensional array of data, the second
-    // argument is this object. The n dimensional array type and size is
-    // determined by the state variables in this object. That is, if
-    // this->bit_depth() = 24, then the data is laid out as a 24 bit number
-    // same for this->ADC_counts_signed(). If seconds is less than zero
-    // then sample continusously
-    virtual void trigger_sampling(const data_handler &handler,
-      basic_trigger &trigger) = 0;
+    /*
+      Run this expansion board. Listen for a potential asynchronous stop
+      call.
+
+      Pre: the board has been initialized
+      Post: The board has not hanging state. That is, the expansion board
+      can be safely stopped at any time
+    */
+    virtual void run(void) {}
+
+    /*
+      Stop--may be called asynchronously
+
+      Pre: the board has been started
+      Post: The run function should return as soon as possible.
+    */
+     virtual void stop(void) {}
+
+    // shutdown whatever communication mechanism is needed to talk to
+    // this system.
+    // Pre: setup_com() has been previously called
+    // Post: No further attempts to communicate with this system will be
+    //      made by this object
+    virtual void finalize(void) {}
+
+
 
     // Board identifiers
 
@@ -153,73 +179,48 @@ class expansion_board {
     // ie (make and model)
     virtual std::string system_description(void) const = 0;
 
-    // State information
 
-    // current sampling rate in rows per second.
-    virtual rational_type row_sampling_rate(void) const = 0;
+    // Trigger state query, waiting, and notification
+    void configure_trigger_sink(
+      const std::shared_ptr<expansion_board> &sink);
 
-    // number of bits for each sample
-    virtual std::uint32_t bit_depth(void) const = 0;
+    /*
+      Wait until receiving a trigger from the configured trigger source
+    */
+    void wait_on_trigger(void);
 
-    // True if the ADC counts be considered a signed integer. This is the
-    // native ADC format---not whether or not your measurement will generate a
-    // negative number or not. Most true-differential ADCs will have a native
-    // unsigned format.
-    virtual bool ADC_counts_signed(void) const = 0;
+    /*
+      Return true if received a trigger from the configured trigger source
+    */
+    bool is_triggered(void) const;
 
-    virtual bool ADC_counts_big_endian(void) const = 0;
+    /*
+      Trigger all listening trigger sinks
+    */
+    void trigger_start(void);
 
-    // The sensitivity expressed as a rational number.
-    // Using the rational form ensures significant digit carryover to
-    // calculations. Thus, the sensitivity can be expressed as:
-    // FSR/(2^bit_depth*gain) for unsigned ADC counts and
-    // FSR/(2^bit_depth-1*gain) for signed ADC counts. Since we are using
-    // the rational form, the unit is always in volts.
-    virtual rational_type sensitivity(void) const = 0;
+    /*
+      Cancel the trigger for all listening trigger sinks
+    */
+    void trigger_stop(void);
 
-    // number of active channels that have been configured
-    virtual std::uint32_t enabled_channels(void) const = 0;
-
-    // if returns true, then each column will include the time each sample
-    // was taken relative to the start trigger in std::nanoseconds. This
-    // includes the size needed to store this value. ie
-    // sizeof(std::chrono::nanoseconds::rep). Endian is the same as that of
-    // ADC_counts_big_endian
-    virtual bool stats(void) const = 0;
-
-
-    // This function is called prior to calling \c setup_com. If this
-    // function returns true, then no further calls will be made to this
-    // object.
-    virtual bool disabled(void) const = 0;
-
-
-    // board-specific data handlers. If not applicable, or not implemented,
-    // then return empty data handler to indicate n/a
-
-    // output to screen
-    virtual data_handler screen_printer(void) const = 0;
-
-    // output to file
-    virtual data_handler file_printer(const fs::path &loc) const = 0;
-
-    // nothing with the data
-    virtual data_handler null_consumer(void) const = 0;
-
-  protected:
-    const po::variables_map &_vm;
 
   private:
+    struct _trigger {
+      std::mutex m;
+      std::condition_variable cv;
+      std::atomic<bool> _flag;
+    };
+
     static factory_map_type & _factory_map(void);
+
+    // This object is a trigger source to other objects
+    std::shared_ptr<_trigger> _trigger_source;
+
+    // This object listens as a trigger sink
+    std::shared_ptr<_trigger> _trigger_sink;
 };
 
-
-struct do_nothing_handler {
-  bool operator()(void *_data, std::size_t num_rows, const expansion_board &adc_board)
-  {
-    return false;
-  }
-};
 
 inline void
 expansion_board::register_expansion(const basic_expansion_factory &factory)
@@ -248,15 +249,55 @@ inline expansion_board::factory_map_type & expansion_board::_factory_map(void)
   return fmap;
 }
 
-// inline po::options_description expansion_board::registered_options(void)
-// {
-//   po::options_description result;
-//
-//   for (auto & cur : factory_map())
-//     result.add(cur.second.registered_options());
-//
-//   return result;
-// }
+inline void expansion_board::configure_trigger_sink(
+  const std::shared_ptr<expansion_board> &sink)
+{
+  // lazy instantiate
+  if(!_trigger_source)
+    _trigger_source.reset(new _trigger());
+
+  sink->_trigger_sink = _trigger_source;
+}
+
+inline void expansion_board::wait_on_trigger(void)
+{
+  if(!_trigger_sink) {
+    std::stringstream err;
+    err << "No trigger sources configured for: "
+      << system_description();
+    throw std::runtime_error(err.str());
+  }
+
+  std::unique_lock<std::mutex> lk(_trigger_sink->m);
+  _trigger_sink->cv.wait(lk, [=]{return _trigger_sink->_flag.load();});
+}
+
+inline bool expansion_board::is_triggered(void) const
+{
+  return (_trigger_sink && _trigger_sink->_flag.load());
+}
+
+inline void expansion_board::trigger_start(void)
+{
+  if(!_trigger_source)
+    return;
+
+  std::unique_lock<std::mutex> lk(_trigger_source->m);
+  _trigger_source->_flag.store(true);
+  lk.unlock();
+  _trigger_source->cv.notify_all();
+}
+
+inline void expansion_board::trigger_stop(void)
+{
+  if(!_trigger_source)
+    return;
+
+  std::unique_lock<std::mutex> lk(_trigger_source->m);
+  _trigger_source->_flag.store(false);
+  lk.unlock();
+  _trigger_source->cv.notify_all();
+}
 
 
 #endif

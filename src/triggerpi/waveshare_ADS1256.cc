@@ -1,19 +1,11 @@
 #include <config.h>
 
-#include "waveshare_expansion.h"
+#include "waveshare_ADS1256.h"
 #include "bits.h"
 
 #include <bcm2835.h>
 
-
-#include <boost/utility/binary.hpp>
-#include <boost/lexical_cast.hpp>
-
-#include <regex>
-#include <sstream>
-#include <string>
 #include <vector>
-#include <iostream>
 #include <cstdlib>
 #include <chrono>
 #include <thread>
@@ -25,7 +17,7 @@
 #endif
 
 
-//CS    -----   SPICS
+//CS    -----   SPICS_ADC
 //DIN   -----   MOSI
 //DOUT  -----   MISO
 //SCLK  -----   SCLK
@@ -35,15 +27,8 @@
 #define DRDY  RPI_GPIO_P1_11
 #define RST   RPI_GPIO_P1_12
 #define PDWN  RPI_GPIO_P1_13
-#define SPICS RPI_GPIO_P1_15
+#define SPICS_ADC RPI_GPIO_P1_15
 
-#define CS_1() bcm2835_gpio_write(SPICS,HIGH)
-#define CS_0()  bcm2835_gpio_write(SPICS,LOW)
-
-#define DRDY_IS_LOW()	((bcm2835_gpio_lev(DRDY)==0))
-
-#define RST_1() 	bcm2835_gpio_write(RST,HIGH);
-#define RST_0() 	bcm2835_gpio_write(RST,LOW);
 
 namespace b = boost;
 namespace po = boost::program_options;
@@ -85,248 +70,33 @@ enum {
 
 namespace waveshare {
 
-// integer power function for base 10. Modified from:
-// http://stackoverflow.com/questions/101439/the-most-efficient-way-to-implement-an-integer-based-power-function-powint-int
-// Does not check for overflow or unsigned values
-template<typename T>
-T ipow10(T exp)
-{
-    T result = 1;
-    T base = 10;
-    while (exp) {
-      if (exp & 1)
-        result *= base;
-      exp >>= 1;
-      base *= base;
-    }
 
-    return result;
+
+
+
+
+
+
+
+
+
+/**
+    Waveshare expansion board does not use the normal SPI chip-select
+    machinery. That is, it does not use the RPi's native chip select pins
+    but rather uses other GPIO. I can only assume this is to allow the
+    system to talk to other SPI devices as needed.
+
+    In any case, the ADS1256 is active low chip select
+ */
+static inline void SPI_release_ADC(void)
+{
+  bcm2835_gpio_write(SPICS_ADC,HIGH);
 }
 
-std::tuple<unsigned char,expansion_board::rational_type>
-validate_translate_sample_rate(const po::variables_map &vm)
+static inline void SPI_assert_ADC(void)
 {
-  // 30000 is the default sample rate
-  unsigned char code_result = BOOST_BINARY(11110000);
-  expansion_board::rational_type row_rate_result(30000,1);
-
-  if(vm.count("waveshare.sample_rate")) {
-    const std::string &sample_rate =
-      vm["waveshare.sample_rate"].as<std::string>();
-
-    // Don't be overly clever. Just map to datasheet.
-    if(sample_rate == "30000") {
-      code_result = BOOST_BINARY(11110000);
-      row_rate_result = expansion_board::rational_type(30000,1);
-    }
-    else if(sample_rate == "15000") {
-      code_result = BOOST_BINARY(11100000);
-      row_rate_result = expansion_board::rational_type(15000,1);
-    }
-    else if(sample_rate == "7500") {
-      code_result = BOOST_BINARY(11010000);
-      row_rate_result = expansion_board::rational_type(7500,1);
-    }
-    else if(sample_rate == "3750") {
-      code_result = BOOST_BINARY(11000000);
-      row_rate_result = expansion_board::rational_type(3750,1);
-    }
-    else if(sample_rate == "2000") {
-      code_result = BOOST_BINARY(10110000);
-      row_rate_result = expansion_board::rational_type(2000,1);
-    }
-    else if(sample_rate == "1000") {
-      code_result = BOOST_BINARY(10100001);
-      row_rate_result = expansion_board::rational_type(1000,1);
-    }
-    else if(sample_rate == "500") {
-      code_result = BOOST_BINARY(10010010);
-      row_rate_result = expansion_board::rational_type(500,1);
-    }
-    else if(sample_rate == "100") {
-      code_result = BOOST_BINARY(10000010);
-      row_rate_result = expansion_board::rational_type(100,1);
-    }
-    else if(sample_rate == "60") {
-      code_result = BOOST_BINARY(01110010);
-      row_rate_result = expansion_board::rational_type(60,1);
-    }
-    else if(sample_rate == "50") {
-      code_result = BOOST_BINARY(01100011);
-      row_rate_result = expansion_board::rational_type(50,1);
-    }
-    else if(sample_rate == "30") {
-      code_result = BOOST_BINARY(01010011);
-      row_rate_result = expansion_board::rational_type(30,1);
-    }
-    else if(sample_rate == "25") {
-      code_result = BOOST_BINARY(01000011);
-      row_rate_result = expansion_board::rational_type(25,1);
-    }
-    else if(sample_rate == "15") {
-      code_result = BOOST_BINARY(00110011);
-      row_rate_result = expansion_board::rational_type(15,1);
-    }
-    else if(sample_rate == "10") {
-      code_result = BOOST_BINARY(00100011);
-      row_rate_result = expansion_board::rational_type(10,1);
-    }
-    else if(sample_rate == "5") {
-      code_result = BOOST_BINARY(00010011);
-      row_rate_result = expansion_board::rational_type(5,1);
-    }
-    else if(sample_rate == "2.5") {
-      code_result = BOOST_BINARY(00000011);
-      row_rate_result = expansion_board::rational_type(25,10);
-    }
-    else {
-      std::stringstream err;
-      err << "Invalid ADC.sample_rate setting for the Waveshare "
-        "expansion board. Possible settings are: 30000, 15000, 7500, "
-        "3750, 2000, 1000, 500, 100, 60, 50, 30, 25, 15, 10, 5, or 2.5 "
-        "samples per second";
-      throw std::runtime_error(err.str());
-    }
-  }
-
-  return std::make_tuple(code_result,row_rate_result);
+  bcm2835_gpio_write(SPICS_ADC,LOW);
 }
-
-std::tuple<unsigned char,std::uint32_t>
-validate_translate_gain(const po::variables_map &vm)
-{
-  // 1 is the default gain value
-  std::tuple<unsigned char,std::uint32_t> result;
-
-  if(vm.count("waveshare.gain")) {
-    const std::string &gain = vm["waveshare.gain"].as<std::string>();
-
-    // Don't be overly clever. Just map to datasheet.
-    if(gain == "1")
-      result = std::make_tuple(BOOST_BINARY(0),1);
-    else if(gain == "2")
-      result = std::make_tuple(BOOST_BINARY(001),2);
-    else if(gain == "4")
-      result = std::make_tuple(BOOST_BINARY(010),4);
-    else if(gain == "8")
-      result = std::make_tuple(BOOST_BINARY(011),8);
-    else if(gain == "16")
-      result = std::make_tuple(BOOST_BINARY(100),16);
-    else if(gain == "32")
-      result = std::make_tuple(BOOST_BINARY(101),32);
-    else if(gain == "64")
-      result = std::make_tuple(BOOST_BINARY(110),64);
-    else {
-      std::stringstream err;
-      err << "Invalid ADC.gain setting for the Waveshare "
-        "expansion board. Possible settings are: 1, 2, 4, 8, 16, 32, or "
-        "64";
-      throw std::runtime_error(err.str());
-    }
-  }
-
-  return result;
-}
-
-expansion_board::rational_type validate_translate_Vref(const std::string Vref_str)
-{
-  typedef expansion_board::rational_type::int_type rint_type;
-
-  static const std::regex digits_regex("[0-9]*");
-  static const expansion_board::rational_type min_vref(5,10);
-  static const expansion_board::rational_type max_vref(26,10);
-
-  rint_type integral = 0;
-  rint_type decimal = 0;
-  rint_type factor = 1;
-
-  bool missing_integral = false;
-  std::stringstream str(Vref_str);
-  try {
-    for(std::size_t i=0; str.good(); ++i) {
-      std::string substr;
-      std::getline(str,substr,'.');
-
-      if(i == 0) {
-        if(substr.empty()) {
-          missing_integral = true;
-          continue;
-        }
-
-        if(!std::regex_match(substr,digits_regex))
-          throw std::runtime_error(Vref_str);
-
-        try {
-          // although stoull accepts a lot more formats that would interfere
-          // here, we've limited the string to just decimal digits. Use stoull
-          // for overflow protection
-          std::size_t pos = 0;
-          integral = std::stoull(substr,&pos);
-          if(pos != substr.size())
-            throw std::runtime_error(substr.substr(pos));
-        }
-        catch(const std::invalid_argument &ex) {
-          throw std::runtime_error(substr);
-        }
-        catch(const std::out_of_range &ex) {
-          std::stringstream err;
-          err << substr << " (overflow)";
-          throw std::runtime_error(err.str());
-        }
-      }
-      else if(i == 1) {
-        if(substr.empty()) {
-          if(missing_integral)
-            throw std::runtime_error(".");
-
-          continue;
-        }
-
-        if(!std::regex_match(substr,digits_regex))
-          throw std::runtime_error(Vref_str);
-
-        try {
-          // although stoull accepts a lot more formats that would interfere
-          // here, we've limited the string to just decimal digits. Use stoull
-          // for overflow protection
-          std::size_t pos = 0;
-          decimal = std::stoull(substr,&pos);
-          if(pos != substr.size())
-            throw std::runtime_error(substr.substr(pos));
-        }
-        catch(const std::invalid_argument &ex) {
-          throw std::runtime_error(substr);
-        }
-        catch(const std::out_of_range &ex) {
-          std::stringstream err;
-          err << substr << " (overflow)";
-          throw std::runtime_error(err.str());
-        }
-
-        factor = ipow10<rint_type>(substr.size());
-      }
-      else
-        throw std::runtime_error(substr);
-    }
-  }
-  catch(const std::runtime_error &ex) {
-    std::stringstream err;
-    err << "Unexpected value '" << ex.what() << "' in Waveshare Vref config";
-    throw std::runtime_error(err.str());
-  }
-
-  expansion_board::rational_type result(integral*factor+decimal,factor);
-
-  if(result < min_vref || max_vref < result) {
-    std::stringstream err;
-    err << "Invalid Vref. Values for the ADS1256 is: "
-      "0.5 < Vref < 2.6 volts. Given " << result << " volts.";
-    throw std::runtime_error(err.str());
-  }
-
-  return result;
-}
-
 
 /**
     Spin wait on DRDY
@@ -337,7 +107,7 @@ expansion_board::rational_type validate_translate_Vref(const std::string Vref_st
     alternative is to get GPIO interrupts working but that will likely need
     this to be run in the kernel which is a major rewrite
  */
-inline void wait_DRDY(void)
+static inline void wait_DRDY(void)
 {
   // Depending on what we are doing, this may make more sense as an interrupt
   while(bcm2835_gpio_lev(DRDY) != 0) {
@@ -353,7 +123,7 @@ void write_to_registers(uint8_t reg_start, char *data, uint8_t num)
 {
   assert(reg_start <= 10 && num > 0);
 
-  CS_0();
+  SPI_assert_ADC();
 
   // first nibble is the command, second is the register number
   bcm2835_spi_transfer(CMD_WREG | reg_start);
@@ -362,7 +132,7 @@ void write_to_registers(uint8_t reg_start, char *data, uint8_t num)
 
   bcm2835_spi_writenb(data,num);
 
-  CS_1();
+  SPI_release_ADC();
 }
 
 
@@ -388,64 +158,13 @@ void write_to_registers(uint8_t reg_start, char *data, uint8_t num)
 
 
 
-waveshare_expansion::waveshare_expansion(const po::variables_map &vm)
- :expansion_board(vm), row_block(1), used_pins(9,0)
-{
-  std::tie(_sample_rate_code,_row_sampling_rate) =
-    validate_translate_sample_rate(vm);
-  std::tie(_gain_code,_gain) = validate_translate_gain(vm);
-}
 
 
-void waveshare_expansion::configure_options(void)
-{
-  assert(did_register_config);
-
-  // Set up channels. If there are no channels, then nothing to do.
-  if(_vm.count("waveshare.ADC")) {
-    const std::vector<std::string> &channel_vec =
-      _vm["waveshare.ADC"].as< std::vector<std::string> >();
-
-    for(std::size_t i=0; i<channel_vec.size(); ++i)
-      validate_assign_channel(channel_vec[i]);
-  }
-
-  if(!_vm.count("waveshare.AINCOM"))
-    throw std::runtime_error("Missing Waveshare AINCOM value");
-
-  aincom = _vm["waveshare.AINCOM"].as<double>();
-
-  buffer_enabled = _vm["waveshare.buffered"].as<bool>();
-
-  if(!_vm.count("waveshare.Vref"))
-    throw std::runtime_error("Missing Waveshare reference voltage");
-
-  _Vref = validate_translate_Vref(
-    _vm["waveshare.Vref"].as<std::string>());
-
-  _async = (_vm.count("async") && _vm["async"].as<bool>());
-
-  _stats = (_vm.count("stats") && _vm["stats"].as<bool>());
-
-  if(_vm.count("waveshare.sampleblocks"))
-    row_block = _vm["waveshare.sampleblocks"].as<std::size_t>();
-  else if(_async)
-    row_block = 1024;
-  else
-    row_block = 10;
-
-  if(!row_block)
-    throw std::runtime_error("waveshare.sampleblocks must be a positive "
-      "integer");
-}
-
-
-void waveshare_expansion::setup_com(void)
+void waveshare_ADS1256::setup_com(void)
 {
   // delay initialization of these so that we can check configuration options
   // first
   bcm2835lib_sentry.reset(new bcm2835_sentry());
-  bcm2835SPI_sentry.reset(new bcm2835_SPI_sentry());
 
   // MSBFIRST is the only supported BIT order according to the bcm2835 library
   // and appears to be the preferred order according to the ADS1255/6 datasheet
@@ -466,11 +185,7 @@ void waveshare_expansion::setup_com(void)
   // Cycling throughput for 521 ns is 4374 with 30,000 SPS setting. Thus we
   // should expect to see lower performace. On my system, I achieve
   // ~0.24 ms sample period or about 4,166.6 interleaved samples per second
-//  bcm2835_spi_setClockDivider(BCM2835_SPI_CLOCK_DIVIDER_256);
-  bcm2835SPI_sentry->clock_divider_range((32768 | 16384 | 8192 | 4096 | 2048 |
-    1024 | 512 | 256));
-
-  bcm2835_spi_setClockDivider(bcm2835SPI_sentry->max_clock_divider());
+  bcm2835_spi_setClockDivider(BCM2835_SPI_CLOCK_DIVIDER_256);
 
   // set RPI_GPIO_P1_15 as output and set it high
   // Waveshare board does not use the normal SPI CS lines but rather uses
@@ -483,7 +198,7 @@ void waveshare_expansion::setup_com(void)
   bcm2835_gpio_set_pud(RPI_GPIO_P1_11, BCM2835_GPIO_PUD_UP);
 }
 
-void waveshare_expansion::initialize(void)
+void waveshare_ADS1256::initialize(void)
 {
   // probably should force reset first
 
@@ -512,9 +227,10 @@ void waveshare_expansion::initialize(void)
 }
 
 
-void waveshare_expansion::trigger_sampling(const data_handler &handler,
+void waveshare_ADS1256::trigger_sampling(const data_handler &handler,
   basic_trigger &trigger)
 {
+#if 0
   if(_async) {
     if(_stats)
       trigger_sampling_async_wstat_impl(handler,trigger);
@@ -527,98 +243,31 @@ void waveshare_expansion::trigger_sampling(const data_handler &handler,
     else
       trigger_sampling_impl(handler,trigger);
   }
+#endif
 }
 
-void waveshare_expansion::validate_assign_channel(const std::string config_str)
+void waveshare_ADS1256::finalize(void)
 {
-  static const std::regex com_regex("com", std::regex_constants::icase);
-
-  // pin numbers are 0-7 and 8=COM
-  unsigned int pinA = 0;
-  unsigned int pinB = 0;
-  std::stringstream str(config_str);
-  for(std::size_t i=0; str.good(); ++i) {
-    std::string substr;
-    std::getline(str,substr,',');
-
-    if(i == 0) {
-      if(std::regex_match(substr,com_regex))
-        pinA = 8;
-      else {
-        try {
-          pinA = b::lexical_cast<unsigned int>(substr);
-        }
-        catch(const boost::bad_lexical_cast &ex) {
-          std::stringstream err;
-          err << "'" << substr << "' is an invalid pin name";
-          throw std::runtime_error(err.str());
-        }
-      }
-
-      if(pinA > 8) {
-        std::stringstream err;
-        err << "'" << substr << "' is an invalid pin. Pins must be "
-          "labeled 0-8 or COM where COM is a synonym for 8";
-        throw std::runtime_error(err.str());
-      }
-      if(used_pins[pinA]) {
-        std::stringstream err;
-        err << "'" << substr << "' has been used previously. Pins must be "
-          "only used once in a channel assignment";
-        throw std::runtime_error(err.str());
-      }
-    }
-    else if(i == 1) {
-      if(std::regex_match(substr,com_regex))
-        pinB = 8;
-      else {
-        try {
-          pinB = b::lexical_cast<unsigned int>(substr);
-        }
-        catch(const boost::bad_lexical_cast &ex) {
-          std::stringstream err;
-          err << "'" << substr << "' is an invalid pin name";
-          throw std::runtime_error(err.str());
-        }
-      }
-
-      if(pinB > 8) {
-        std::stringstream err;
-        err << "'" << substr << "' is an invalid pin. Pins must be "
-          "labeled 0-8 or COM where COM is a synonym for 8";
-        throw std::runtime_error(err.str());
-      }
-      if(used_pins[pinB] || pinB == pinA) {
-        std::stringstream err;
-        err << "'" << substr << "' has been used previously. Pins must be "
-          "only used once in a channel assignment";
-        throw std::runtime_error(err.str());
-      }
-    }
-    else {
-      std::stringstream err;
-      err << "unexpected '" << substr << "' in ADC channel assignment. "
-        "ADC Channel directives should be of the form waveshare.ADC=pinA,pinB";
-      throw std::runtime_error(err.str());
-    }
-  }
-
-  // all is well, now do the assignment and log
-  char MUX = (pinA << 4) | pinB;
-  channel_assignment.push_back(MUX);
-  if(pinA < 8)
-    used_pins.at(pinA) = true;
-
-  if(pinB < 8)
-    used_pins.at(pinB) = true;
-
-  if(detail::is_verbose<1>(_vm)) {
-    std::cout << "Enabled ADC channel with configuration: " << pinA
-      << "," << pinB << "\n";
-  }
+// this really needs to be setup as one and used only for this class. there is
+// no real way to guarantee (or someone might forget) the order of the sentry
+// destruction. ie the library could deallocate before the SPI. So just use
+// one sentry class for both.
+  bcm2835lib_sentry.reset();
 }
 
-void waveshare_expansion::trigger_sampling_impl(const data_handler &handler,
+
+
+
+
+
+
+
+
+
+
+#if 0
+
+void waveshare_ADS1256::trigger_sampling_impl(const data_handler &handler,
   basic_trigger &trigger)
 {
   sample_buffer_type sample_buffer(
@@ -641,22 +290,22 @@ void waveshare_expansion::trigger_sampling_impl(const data_handler &handler,
       &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
     bcm2835_delayMicroseconds(5);
 
-    CS_0();
+    SPI_assert_ADC();
     bcm2835_spi_transfer(CMD_SYNC);
-    CS_1();
+    SPI_release_ADC();
     bcm2835_delayMicroseconds(5);
 
-    CS_0();
+    SPI_assert_ADC();
     bcm2835_spi_transfer(CMD_WAKEUP);
-    CS_1();
+    SPI_release_ADC();
     bcm2835_delayMicroseconds(25);
 
-    CS_0();
+    SPI_assert_ADC();
     bcm2835_spi_transfer(CMD_RDATA);
     bcm2835_delayMicroseconds(10);
 
     bcm2835_spi_transfern(dummy_buf,3);
-    CS_1();
+    SPI_release_ADC();
   }
 
   // correct channel is now staged for conversion
@@ -680,22 +329,22 @@ void waveshare_expansion::trigger_sampling_impl(const data_handler &handler,
           &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
         bcm2835_delayMicroseconds(5);
 
-        CS_0();
+        SPI_assert_ADC();
         bcm2835_spi_transfer(CMD_SYNC);
-        CS_1();
+        SPI_release_ADC();
         bcm2835_delayMicroseconds(5);
 
-        CS_0();
+        SPI_assert_ADC();
         bcm2835_spi_transfer(CMD_WAKEUP);
-        CS_1();
+        SPI_release_ADC();
         bcm2835_delayMicroseconds(25);
 
-        CS_0();
+        SPI_assert_ADC();
         bcm2835_spi_transfer(CMD_RDATA);
         bcm2835_delayMicroseconds(10);
 
         bcm2835_spi_transfern(data_buffer,3);
-        CS_1();
+        SPI_release_ADC();
 
         data_buffer += 3;
       }
@@ -705,7 +354,7 @@ void waveshare_expansion::trigger_sampling_impl(const data_handler &handler,
   }
 }
 
-void waveshare_expansion::trigger_sampling_wstat_impl(const data_handler &handler,
+void waveshare_ADS1256::trigger_sampling_wstat_impl(const data_handler &handler,
   basic_trigger &trigger)
 {
   typedef std::chrono::high_resolution_clock::time_point time_point_type;
@@ -733,22 +382,22 @@ void waveshare_expansion::trigger_sampling_wstat_impl(const data_handler &handle
       &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
     bcm2835_delayMicroseconds(5);
 
-    CS_0();
+    SPI_assert_ADC();
     bcm2835_spi_transfer(CMD_SYNC);
-    CS_1();
+    SPI_release_ADC();
     bcm2835_delayMicroseconds(5);
 
-    CS_0();
+    SPI_assert_ADC();
     bcm2835_spi_transfer(CMD_WAKEUP);
-    CS_1();
+    SPI_release_ADC();
     bcm2835_delayMicroseconds(25);
 
-    CS_0();
+    SPI_assert_ADC();
     bcm2835_spi_transfer(CMD_RDATA);
     bcm2835_delayMicroseconds(10);
 
     bcm2835_spi_transfern(dummy_buf,3);
-    CS_1();
+    SPI_release_ADC();
   }
 
   time_point_type start_time = std::chrono::high_resolution_clock::now();
@@ -774,22 +423,22 @@ void waveshare_expansion::trigger_sampling_wstat_impl(const data_handler &handle
           &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
         bcm2835_delayMicroseconds(5);
 
-        CS_0();
+        SPI_assert_ADC();
         bcm2835_spi_transfer(CMD_SYNC);
-        CS_1();
+        SPI_release_ADC();
         bcm2835_delayMicroseconds(5);
 
-        CS_0();
+        SPI_assert_ADC();
         bcm2835_spi_transfer(CMD_WAKEUP);
-        CS_1();
+        SPI_release_ADC();
         bcm2835_delayMicroseconds(25);
 
-        CS_0();
+        SPI_assert_ADC();
         bcm2835_spi_transfer(CMD_RDATA);
         bcm2835_delayMicroseconds(10);
 
         bcm2835_spi_transfern(data_buffer,3);
-        CS_1();
+        SPI_release_ADC();
 
         std::chrono::high_resolution_clock::time_point now =
           std::chrono::high_resolution_clock::now();
@@ -809,7 +458,7 @@ void waveshare_expansion::trigger_sampling_wstat_impl(const data_handler &handle
   }
 }
 
-void waveshare_expansion::async_handler(ringbuffer_type &allocation_ringbuffer,
+void waveshare_ADS1256::async_handler(ringbuffer_type &allocation_ringbuffer,
   ringbuffer_type &ready_ringbuffer, const data_handler &handler,
   std::atomic_int &done)
 {
@@ -825,7 +474,7 @@ void waveshare_expansion::async_handler(ringbuffer_type &allocation_ringbuffer,
 }
 
 
-void waveshare_expansion::trigger_sampling_async_impl(const data_handler &handler,
+void waveshare_ADS1256::trigger_sampling_async_impl(const data_handler &handler,
   basic_trigger &trigger)
 {
   static const std::size_t max_allocation = 32;
@@ -842,7 +491,7 @@ void waveshare_expansion::trigger_sampling_async_impl(const data_handler &handle
 
   std::atomic_int done(false);
 
-  std::thread servicing_thread(&waveshare_expansion::async_handler,*this,
+  std::thread servicing_thread(&waveshare_ADS1256::async_handler,*this,
     std::ref(allocation_ringbuffer), std::ref(ready_ringbuffer),
     std::cref(handler), std::ref(done));
 
@@ -863,22 +512,22 @@ void waveshare_expansion::trigger_sampling_async_impl(const data_handler &handle
       &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
     bcm2835_delayMicroseconds(5);
 
-    CS_0();
+    SPI_assert_ADC();
     bcm2835_spi_transfer(CMD_SYNC);
-    CS_1();
+    SPI_release_ADC();
     bcm2835_delayMicroseconds(5);
 
-    CS_0();
+    SPI_assert_ADC();
     bcm2835_spi_transfer(CMD_WAKEUP);
-    CS_1();
+    SPI_release_ADC();
     bcm2835_delayMicroseconds(25);
 
-    CS_0();
+    SPI_assert_ADC();
     bcm2835_spi_transfer(CMD_RDATA);
     bcm2835_delayMicroseconds(10);
 
     bcm2835_spi_transfern(dummy_buf,3);
-    CS_1();
+    SPI_release_ADC();
   }
 
   // correct channel is now staged for conversion
@@ -906,22 +555,22 @@ void waveshare_expansion::trigger_sampling_async_impl(const data_handler &handle
           &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
         bcm2835_delayMicroseconds(5);
 
-        CS_0();
+        SPI_assert_ADC();
         bcm2835_spi_transfer(CMD_SYNC);
-        CS_1();
+        SPI_release_ADC();
         bcm2835_delayMicroseconds(5);
 
-        CS_0();
+        SPI_assert_ADC();
         bcm2835_spi_transfer(CMD_WAKEUP);
-        CS_1();
+        SPI_release_ADC();
         bcm2835_delayMicroseconds(25);
 
-        CS_0();
+        SPI_assert_ADC();
         bcm2835_spi_transfer(CMD_RDATA);
         bcm2835_delayMicroseconds(10);
 
         bcm2835_spi_transfern(data_buffer,3);
-        CS_1();
+        SPI_release_ADC();
 
         data_buffer += 3;
       }
@@ -934,7 +583,7 @@ void waveshare_expansion::trigger_sampling_async_impl(const data_handler &handle
   servicing_thread.join();
 }
 
-void waveshare_expansion::trigger_sampling_async_wstat_impl(
+void waveshare_ADS1256::trigger_sampling_async_wstat_impl(
   const data_handler &handler, basic_trigger &trigger)
 {
   typedef std::chrono::high_resolution_clock::time_point time_point_type;
@@ -956,7 +605,7 @@ void waveshare_expansion::trigger_sampling_async_wstat_impl(
 
   std::atomic_int done(false);
 
-  std::thread servicing_thread(&waveshare_expansion::async_handler,*this,
+  std::thread servicing_thread(&waveshare_ADS1256::async_handler,*this,
     std::ref(allocation_ringbuffer), std::ref(ready_ringbuffer),
     std::cref(handler), std::ref(done));
 
@@ -977,22 +626,22 @@ void waveshare_expansion::trigger_sampling_async_wstat_impl(
       &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
     bcm2835_delayMicroseconds(5);
 
-    CS_0();
+    SPI_assert_ADC();
     bcm2835_spi_transfer(CMD_SYNC);
-    CS_1();
+    SPI_release_ADC();
     bcm2835_delayMicroseconds(5);
 
-    CS_0();
+    SPI_assert_ADC();
     bcm2835_spi_transfer(CMD_WAKEUP);
-    CS_1();
+    SPI_release_ADC();
     bcm2835_delayMicroseconds(25);
 
-    CS_0();
+    SPI_assert_ADC();
     bcm2835_spi_transfer(CMD_RDATA);
     bcm2835_delayMicroseconds(10);
 
     bcm2835_spi_transfern(dummy_buf,3);
-    CS_1();
+    SPI_release_ADC();
   }
 
   time_point_type start_time = std::chrono::high_resolution_clock::now();
@@ -1022,22 +671,22 @@ void waveshare_expansion::trigger_sampling_async_wstat_impl(
           &(channel_assignment[(chan+1)%channel_assignment.size()]),1);
         bcm2835_delayMicroseconds(5);
 
-        CS_0();
+        SPI_assert_ADC();
         bcm2835_spi_transfer(CMD_SYNC);
-        CS_1();
+        SPI_release_ADC();
         bcm2835_delayMicroseconds(5);
 
-        CS_0();
+        SPI_assert_ADC();
         bcm2835_spi_transfer(CMD_WAKEUP);
-        CS_1();
+        SPI_release_ADC();
         bcm2835_delayMicroseconds(25);
 
-        CS_0();
+        SPI_assert_ADC();
         bcm2835_spi_transfer(CMD_RDATA);
         bcm2835_delayMicroseconds(10);
 
         bcm2835_spi_transfern(data_buffer,3);
-        CS_1();
+        SPI_release_ADC();
 
         std::chrono::high_resolution_clock::time_point now =
           std::chrono::high_resolution_clock::now();
@@ -1059,7 +708,7 @@ void waveshare_expansion::trigger_sampling_async_wstat_impl(
   done.store(true);
   servicing_thread.join();
 }
-
+#endif
 
 
 }
