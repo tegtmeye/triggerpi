@@ -19,6 +19,8 @@
 #include <set>
 #include <atomic>
 
+#include <iostream>
+
 namespace b = boost;
 namespace po = boost::program_options;
 namespace fs = boost::filesystem;
@@ -60,7 +62,7 @@ struct basic_expansion_factory {
   /*
     Construct an object of the factory's expansion board type.
   */
-  virtual expansion_board * construct(const po::variables_map &vm) const = 0;
+  virtual expansion_board * construct(void) const = 0;
 
   /*
     Clone this expansion factory for storage
@@ -86,8 +88,8 @@ struct expansion_factory : public basic_expansion_factory {
     return T::system_config_desc_long();
   }
 
-  expansion_board * construct(const po::variables_map &vm) const {
-    return new T(vm);
+  expansion_board * construct(void) const {
+    return new T();
   }
 
   expansion_factory * clone(void) const {
@@ -96,8 +98,53 @@ struct expansion_factory : public basic_expansion_factory {
 };
 
 
+enum class trigger_type : unsigned int {
+  none = 0,
+  single_shot = (1 << 0),
+  intermittent = ((1 << 1) | single_shot)
+};
+
+inline constexpr trigger_type
+operator&(trigger_type __x, trigger_type __y)
+{
+  return static_cast<trigger_type>
+    (static_cast<unsigned int>(__x) & static_cast<unsigned int>(__y));
+}
+
+inline constexpr trigger_type
+operator|(trigger_type __x, trigger_type __y)
+{
+  return static_cast<trigger_type>
+    (static_cast<unsigned int>(__x) | static_cast<unsigned int>(__y));
+}
+
+inline constexpr trigger_type
+operator^(trigger_type __x, trigger_type __y)
+{
+  return static_cast<trigger_type>
+    (static_cast<unsigned int>(__x) ^ static_cast<unsigned int>(__y));
+}
+
+
 class expansion_board {
   public:
+    /*
+      If a board trigger configuration is:
+        - none: This expansion is not a trigger source or sink depending on
+        where `c none is used
+
+        - trigger_type::single_shot: the source is enabled and then optionally disabled at
+        some later point in time. Once disabled, it should never again be
+        enabled.
+
+        - intermittent: the source may be continuously enabled and then
+        disabled. Intermittent implies trigger_type::single_shot
+
+
+      The triggers may be 'or-ed' together if it can be used as either a
+      trigger_type::single_shot or intermittent. That is: (trigger_type::single_shot | intermittent).
+    */
+
     typedef std::map<std::string,
       std::shared_ptr<basic_expansion_factory> > factory_map_type;
 
@@ -116,7 +163,11 @@ class expansion_board {
       bool(void *data, std::size_t rows, const expansion_board &board)>
         data_handler;
 
+    expansion_board(trigger_type source=trigger_type::none,
+      trigger_type sink=trigger_type::none);
+
     virtual ~expansion_board(void) {}
+
 
     // These member functions are called in this order
 
@@ -125,13 +176,6 @@ class expansion_board {
     // Pre: none
     // Post: none
     virtual void configure_options(const po::variables_map &) {}
-
-    // This function is called prior to calling \c setup_com. If this
-    // function returns true, then no further calls will be made to this
-    // object.
-    // Pre: configure_options has been called
-    // Post: If true, setup_com through finalize will be called
-    virtual bool disabled(void) const {return false;}
 
     // setup and enable whatever communication mechanism is needed to talk to
     // this system.
@@ -154,7 +198,7 @@ class expansion_board {
       Post: The board has not hanging state. That is, the expansion board
       can be safely stopped at any time
     */
-    virtual void run(void) {}
+    virtual void run(void) = 0;
 
     /*
       Stop--may be called asynchronously
@@ -204,6 +248,25 @@ class expansion_board {
     */
     void trigger_stop(void);
 
+    /*
+      Enabling/disabling of this expansion
+    */
+    void enable(void) {_enabled = true;}
+
+    void disable(void) {_enabled = false;}
+
+    bool is_enabled(void) const {return _enabled;}
+
+    /*
+      Trigger source/sink configuration
+
+      By default all expansions can be configured as both sources and sinks.
+      To tailor in inherited classes, use constructor. That is,
+      source or sink-ness is not a configuration option, it is a class trait.
+    */
+    trigger_type trigger_source_type(void) const;
+    trigger_type trigger_sink_type(void) const;
+
 
   private:
     struct _trigger {
@@ -219,8 +282,19 @@ class expansion_board {
 
     // This object listens as a trigger sink
     std::shared_ptr<_trigger> _trigger_sink;
+
+    bool _enabled;
+    trigger_type _trigger_source_type;
+    trigger_type _trigger_sink_type;
 };
 
+
+
+
+inline expansion_board::expansion_board(trigger_type source, trigger_type sink)
+  :_enabled(false), _trigger_source_type(source), _trigger_sink_type(sink)
+{
+}
 
 inline void
 expansion_board::register_expansion(const basic_expansion_factory &factory)
@@ -261,12 +335,7 @@ inline void expansion_board::configure_trigger_sink(
 
 inline void expansion_board::wait_on_trigger(void)
 {
-  if(!_trigger_sink) {
-    std::stringstream err;
-    err << "No trigger sources configured for: "
-      << system_description();
-    throw std::runtime_error(err.str());
-  }
+  assert(_trigger_sink);
 
   std::unique_lock<std::mutex> lk(_trigger_sink->m);
   _trigger_sink->cv.wait(lk, [=]{return _trigger_sink->_flag.load();});
@@ -297,6 +366,18 @@ inline void expansion_board::trigger_stop(void)
   _trigger_source->_flag.store(false);
   lk.unlock();
   _trigger_source->cv.notify_all();
+}
+
+inline trigger_type
+expansion_board::trigger_source_type(void) const
+{
+  return _trigger_source_type;
+}
+
+inline trigger_type
+expansion_board::trigger_sink_type(void) const
+{
+  return _trigger_sink_type;
 }
 
 

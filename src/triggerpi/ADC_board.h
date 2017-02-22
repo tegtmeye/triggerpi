@@ -33,6 +33,8 @@ class ADC_board : public expansion_board {
     // conversion.
     typedef b::rational<std::uint64_t> rational_type;
 
+    using expansion_board::expansion_board;
+
     virtual ~ADC_board(void) {}
 
     // current sampling rate in rows per second.

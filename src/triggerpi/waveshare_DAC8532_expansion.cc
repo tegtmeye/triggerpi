@@ -24,11 +24,6 @@
 
 namespace waveshare {
 
-waveshare_DAC8532::waveshare_DAC8532(const po::variables_map &vm)
- :DAC_board(vm)
-{
-}
-
 
 void waveshare_DAC8532::configure_options(void)
 {

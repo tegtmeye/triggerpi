@@ -76,14 +76,14 @@ class waveshare_ADS1256 :public ADC_board {
     static std::string system_config_desc_short(void);
     static std::string system_config_desc_long(void);
 
-    waveshare_ADS1256(const po::variables_map &vm);
+    waveshare_ADS1256(void);
 
     // Expansion board overrides
     virtual void configure_options(const po::variables_map &vm);
     virtual void setup_com(void);
     virtual void initialize(void);
 
-    virtual void start(void) {}
+    virtual void run(void);
 
 
     // Start sampling the ADC. The callback will be called with the first

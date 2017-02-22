@@ -46,56 +46,25 @@ fs::path user_pref_dir(void)
   return pref_dir;
 }
 
-std::pair<std::size_t, std::shared_ptr<expansion_board> >
-parse_trigger_source(const expansion_map_type &expansion_map,
-  const std::string &raw_str)
+std::string to_string(trigger_type type)
 {
-  std::string board_str;
-  size_t trigger_id = 0;
-  std::size_t count_tag_loc = raw_str.find('#');
-  if(count_tag_loc != std::string::npos) {
-    board_str = raw_str.substr(0,count_tag_loc);
-    std::string raw_id = raw_str.substr(count_tag_loc+1);
-    std::size_t unconverted = 0;
-    try {
-      trigger_id = stoull(raw_id,&unconverted);
-    }
-    catch(const std::exception &) {
-      // conversion errors will be caught by incorrect 'unconverted'
-    }
+  std::string result;
 
-    if(unconverted != raw_id.size()) {
-      std::stringstream err;
-      err << "Expected nonnegative integer for expansion board trigger "
-        "id. Received '" << raw_id << "'";
-      throw std::runtime_error(err.str());
-    }
-  }
-  else
-    board_str = raw_str;
-
-  std::shared_ptr<expansion_board> expansion;
-  if(board_str == "immediate") {
-    expansion.reset(new immediate_trigger());
-  }
+  if(type == trigger_type::none)
+    result = "no_trigger";
   else {
-    expansion_map_type::const_iterator res = expansion_map.find(board_str);
+    if((type & trigger_type::single_shot) != trigger_type::none)
+      result += "single_shot_trigger ";
 
-    if(res == expansion_map.end()) {
-      std::stringstream err;
-      err << "Unknown expansion system: '" << board_str << "' used as "
-        "a trigger";
-      throw std::runtime_error(err.str());
-    }
-
-    expansion = res->second;
+    if((type & trigger_type::intermittent) != trigger_type::none)
+      result += "intermittent_trigger ";
   }
 
-  return std::make_pair(trigger_id,expansion);
+  return result;
 }
 
 std::pair<std::size_t, std::shared_ptr<expansion_board> >
-parse_trigger_sink(const expansion_map_type &expansion_map,
+parse_trigger(const expansion_map_type &expansion_map,
   const std::string &raw_str)
 {
   std::string board_str;
@@ -135,6 +104,17 @@ parse_trigger_sink(const expansion_map_type &expansion_map,
 }
 
 
+void register_builtin(const std::shared_ptr<expansion_board> &expansion,
+  expansion_map_type &expansion_map, const po::variables_map &vm,
+  const std::string &arg_name)
+{
+  if(detail::is_verbose<2>(vm))
+    std::cout << "Registering builtin expansion: '"
+      << expansion->system_description() << "'\n";
+
+  expansion->configure_options(vm);
+  expansion_map[arg_name] = expansion;
+}
 
 
 
@@ -143,16 +123,36 @@ parse_trigger_sink(const expansion_map_type &expansion_map,
 
 
 
+class barrier
+{
+  public:
+    explicit barrier(std::size_t count) : _count{count} { }
+
+    void wait(void) {
+      std::unique_lock<std::mutex> lock{_mutex};
+      if (--_count == 0) {
+          _cv.notify_all();
+      } else {
+          _cv.wait(lock, [this] { return _count == 0; });
+      }
+    }
+
+  private:
+      std::mutex _mutex;
+      std::condition_variable _cv;
+      std::size_t _count;
+};
 
 
-void run_expansion_board(const std::shared_ptr<expansion_board> &expansion)
+void run_expansion_board(const std::shared_ptr<expansion_board> &expansion,
+  barrier *_barrier)
 {
   try {
-    if(expansion->disabled())
-      return;
-
     expansion->setup_com();
     expansion->initialize();
+
+    _barrier->wait();
+
     expansion->run();
   }
   catch(const std::exception &e) {
@@ -431,16 +431,22 @@ int main(int argc, char *argv[])
     // check for required configuration items
 
     // determine and instantiate expansion system
-    typedef std::vector<std::string> stringvec;
-
     expansion_map_type expansion_map;
-    std::vector<std::thread> thread_vec;
+
+    // add the builtins, do not enable. Only enable if they are defined as a
+    // trigger source/sink
+    register_builtin(std::shared_ptr<expansion_board>(new immediate_trigger()),
+      expansion_map,vm,"immediate");
+
+
 
     if(!vm.count("system"))
       throw std::runtime_error("Missing system configuration item");
 
     const std::vector<std::string> &systemvec =
       vm["system"].as<std::vector<std::string> >();
+
+    std::shared_ptr<expansion_board> expansion;
 
     for (auto & system : systemvec) {
       if(!registered_expansion.count(system)) {
@@ -455,15 +461,20 @@ int main(int argc, char *argv[])
         throw std::runtime_error(err.str());
       }
 
-      std::shared_ptr<expansion_board> expansion(
-        registered_expansion.at(system)->construct(vm));
+      expansion.reset(registered_expansion.at(system)->construct());
+
+      if(detail::is_verbose<2>(vm))
+        std::cout << "Registering expansion: '"
+          << expansion->system_description() << "'\n";
+
+      expansion->configure_options(vm);
 
       expansion_map[system] = expansion;
     }
 
     std::map<std::size_t,std::shared_ptr<expansion_board> > trigger_sources;
     std::map<std::size_t,
-      std::vector<std::shared_ptr<expansion_board> > > trigger_sinks;
+      std::set<std::shared_ptr<expansion_board> > > trigger_sinks;
 
     if(vm.count("tsource")) {
       const std::vector<std::string> &tsource_vec =
@@ -471,7 +482,14 @@ int main(int argc, char *argv[])
 
       for(auto & tsource : tsource_vec) {
         std::pair<std::size_t,std::shared_ptr<expansion_board> > result =
-          parse_trigger_source(expansion_map,tsource);
+          parse_trigger(expansion_map,tsource);
+
+        if(result.second->trigger_source_type() == trigger_type::none) {
+          std::stringstream err;
+          err << "Error: system: '" << result.second->system_description()
+            << "' cannot be configured as a trigger source";
+          throw std::runtime_error(err.str());
+        }
 
         if(trigger_sources.find(result.first) != trigger_sources.end()) {
           std::cerr << "Warning: duplicate trigger source id "
@@ -480,8 +498,11 @@ int main(int argc, char *argv[])
 
         trigger_sources.insert(result);
 
-        if(detail::is_verbose<1>(vm))
-          std::cout << "Registered trigger source: '" << tsource << "\n";
+        result.second->enable();
+
+        if(detail::is_verbose<2>(vm))
+          std::cout << "Registered trigger source: '" << tsource
+            << "' for slot " << result.first << "\n";
       }
     }
 
@@ -492,36 +513,107 @@ int main(int argc, char *argv[])
 
       for(auto & tsink : tsink_vec) {
         std::pair<std::size_t,std::shared_ptr<expansion_board> > result =
-          parse_trigger_sink(expansion_map,tsink);
+          parse_trigger(expansion_map,tsink);
 
-        trigger_sinks[result.first].emplace_back(result.second);
+        if(result.second->trigger_sink_type() == trigger_type::none) {
+          std::stringstream err;
+          err << "Error: system: '" << result.second->system_description()
+            << "' cannot be configured as a trigger sink";
+          throw std::runtime_error(err.str());
+        }
 
-        if(detail::is_verbose<1>(vm))
-          std::cout << "Registered trigger sink: '" << tsink << "\n";
+        auto & sink_set = trigger_sinks[result.first];
+        if(sink_set.find(result.second) != sink_set.end()) {
+          std::stringstream err;
+          err << "Error: duplicate trigger sink: '"
+            << result.second->system_description()
+            << "' for id " << result.first;
+          throw std::runtime_error(err.str());
+        }
+
+        sink_set.insert(result.second);
+
+        result.second->enable();
+
+        if(detail::is_verbose<2>(vm))
+          std::cout << "Registered trigger sink: '" << tsink
+            << "' for slot " << result.first << "\n";
       }
     }
 
-    // configure options for all. Must be done before registering the sinks
-    for(auto & pair : expansion_map)
-      pair.second->configure_options(vm);
-
-    // register the sinks with all of the sources
+    /*
+      register the sinks with all of the sources. If the source and sinks have
+      incompatible trigger_types, then throw an error.
+    */
     for(auto & psource : trigger_sources) {
       auto sink_iter = trigger_sinks.find(psource.first);
       if(sink_iter != trigger_sinks.end()) {
-        for(auto &psink : sink_iter->second) {
-          psource.second->configure_trigger_sink(psink);
+        if(detail::is_verbose<2>(vm))
+          std::cout << "Configuring trigger #: source -> sink\n";
+
+        for(auto &sink : sink_iter->second) {
+          trigger_type trig =
+            (psource.second->trigger_source_type() & sink->trigger_sink_type());
+
+          if(trig == trigger_type::none) {
+            std::stringstream err;
+            err << "Error: incompatible trigger types: '"
+              << psource.second->system_description() << "' configured as: "
+              << to_string(psource.second->trigger_source_type())
+              << "' and system: '"
+              << sink->system_description() << "' configured as: "
+              << to_string(sink->trigger_sink_type());
+            throw std::runtime_error(err.str());
+          }
+
+          if(detail::is_verbose<2>(vm)) {
+            std::cout << "  #" << sink_iter->first
+              << ": '" << psource.second->system_description()
+              << "' -> '" << sink->system_description() << "\n";
+          }
+
+          psource.second->configure_trigger_sink(sink);
         }
       }
       else {
-        std::cerr << "Warning: configured trigger source id "
-          << psource.first << " has no sinks\n";
+        std::cerr << "Warning: configured trigger source at id "
+          << psource.first << " does not have a sink!\n";
       }
     }
 
-    for(auto & pair : expansion_map)
-      thread_vec.push_back(std::thread(run_expansion_board,pair.second));
+    // check to ensure all sinks have sources
+    for(auto & psink : trigger_sinks) {
+      auto source_iter = trigger_sources.find(psink.first);
+      if(source_iter == trigger_sources.end()) {
+        std::cerr << "Warning: configured trigger sink(s) at id "
+          << psink.first << " does not have a source.\n";
+        for(auto & sink : psink.second) {
+          std::cerr << "  Disabling: " << sink->system_description() << "\n";
+          sink->disable();
+        }
+      }
+    }
 
+    std::size_t num_enabled = 1; // plus one for main thread
+    for(auto & pair : expansion_map) {
+      if(pair.second->is_enabled())
+        ++num_enabled;
+    }
+
+    // set up a barrier so that all threads start at once
+    std::vector<std::thread> thread_vec;
+    barrier _barrier(num_enabled);
+
+    for(auto & pair : expansion_map) {
+      if(pair.second->is_enabled()) {
+        thread_vec.push_back(
+          std::thread(run_expansion_board,pair.second,&_barrier));
+      }
+    }
+
+    _barrier.wait();
+
+    // wait until done
     for(auto & thread : thread_vec)
       thread.join();
 

@@ -372,8 +372,9 @@ po::options_description waveshare_ADS1256::cmd_options(void)
 
 
 
-waveshare_ADS1256::waveshare_ADS1256(const po::variables_map &vm)
- :row_block(1), used_pins(9,0)
+waveshare_ADS1256::waveshare_ADS1256(void)
+  :ADC_board(trigger_type::none,trigger_type::single_shot), row_block(1),
+    used_pins(9,0)
 {
 }
 

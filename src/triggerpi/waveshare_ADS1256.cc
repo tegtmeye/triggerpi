@@ -12,6 +12,8 @@
 #include <functional>
 #include <atomic>
 
+#include <iostream>
+
 #ifndef WORDS_BIGENDIAN
 #error missing endian information
 #endif
@@ -162,6 +164,8 @@ void write_to_registers(uint8_t reg_start, char *data, uint8_t num)
 
 void waveshare_ADS1256::setup_com(void)
 {
+  return;
+
   // delay initialization of these so that we can check configuration options
   // first
   bcm2835lib_sentry.reset(new bcm2835_sentry());
@@ -200,6 +204,8 @@ void waveshare_ADS1256::setup_com(void)
 
 void waveshare_ADS1256::initialize(void)
 {
+  return;
+
   // probably should force reset first
 
   char regs[4] = {0};
@@ -246,8 +252,18 @@ void waveshare_ADS1256::trigger_sampling(const data_handler &handler,
 #endif
 }
 
+void waveshare_ADS1256::run(void)
+{
+  std::cerr << "waveshare_ADS1256 running!\n";
+
+  wait_on_trigger();
+
+  std::cerr << "Triggered!!!\n";
+}
+
 void waveshare_ADS1256::finalize(void)
 {
+  return;
 // this really needs to be setup as one and used only for this class. there is
 // no real way to guarantee (or someone might forget) the order of the sentry
 // destruction. ie the library could deallocate before the SPI. So just use
