@@ -3,8 +3,7 @@
 #include "bits.h"
 #include "expansion_board.h"
 #include "waveshare_ADS1256.h"
-#include "timed_trigger.h" // to remove
-#include "immediate_trigger.h"
+#include "timed_trigger.h"
 
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
@@ -17,10 +16,12 @@
 #include <vector>
 #include <memory>
 #include <thread>
+#include <regex>
 
 namespace b = boost;
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
+namespace chrono = std::chrono;
 
 #if !defined(TRIGGERPI_SITE_CONFIGDIR)
 #error missing TRIGGERPI_SITE_CONFIGDIR
@@ -63,9 +64,8 @@ std::string to_string(trigger_type type)
   return result;
 }
 
-std::pair<std::size_t, std::shared_ptr<expansion_board> >
-parse_trigger(const expansion_map_type &expansion_map,
-  const std::string &raw_str)
+std::pair<std::size_t,std::string>
+parse_triggerspec(const std::string &raw_str)
 {
   std::string board_str;
   size_t trigger_id = 0;
@@ -91,17 +91,139 @@ parse_trigger(const expansion_map_type &expansion_map,
   else
     board_str = raw_str;
 
-  expansion_map_type::const_iterator res = expansion_map.find(board_str);
+  return std::make_pair(trigger_id,board_str);
+}
 
-  if(res == expansion_map.end()) {
-    std::stringstream err;
-    err << "Unknown expansion system: '" << board_str << "' used as "
-      "a trigger";
-    throw std::runtime_error(err.str());
+std::pair<std::tm,bool>
+parse_timespec(const std::string &raw_str, std::string &remainder)
+{
+  std::pair<std::tm,bool> result({},false);
+
+  std::istringstream in(raw_str);
+  in >> std::get_time(&result.first, timed_trigger::time_fmt());
+  if (!in.fail()) {
+    in >> remainder;
+    result.second = true;
   }
 
-  return std::make_pair(trigger_id,res->second);
+  return result;
 }
+
+std::pair<std::chrono::nanoseconds,bool>
+parse_durspec(const std::string &raw_str)
+{
+  static const std::regex expr("^"
+    "(([[:digit:]]+)[hH])"
+    "(:([[:digit:]]+)[mM])?"
+    "(:([[:digit:]]+)[sS])?"
+    "(:([[:digit:]]+)(ms|MS))?"
+    "(:([[:digit:]]+)(us|US))?"
+    "(:([[:digit:]]+)(ns|NS))?");
+
+  std::pair<std::chrono::nanoseconds,bool>
+    results(std::chrono::nanoseconds(0),false);
+
+  try {
+    std::smatch match;
+    if(!std::regex_match(raw_str,match,expr)) {
+      results.second = true;
+
+      if(match[2].length())
+        results.first += std::chrono::hours(std::stoull(match[2]));
+      if(match[4].length())
+        results.first += std::chrono::minutes(std::stoull(match[4]));
+      if(match[6].length())
+        results.first += std::chrono::seconds(std::stoull(match[6]));
+      if(match[8].length())
+        results.first += std::chrono::milliseconds(std::stoull(match[8]));
+      if(match[11].length())
+        results.first += std::chrono::microseconds(std::stoull(match[11]));
+      if(match[14].length())
+        results.first += std::chrono::nanoseconds(std::stoull(match[14]));
+    }
+  }
+  catch (...) {
+    // if throw then error in validation regex
+    abort();
+  }
+
+  return results;
+}
+
+std::pair<std::chrono::nanoseconds,std::tm>
+parse_durtimespec(const std::string &raw_str)
+{
+  static const std::regex expr("^"
+    "(([[:digit:]]+)[hH])"
+    "(:([[:digit:]]+)[mM])?"
+    "(:([[:digit:]]+)[sS])?"
+    "(:([[:digit:]]+)(ms|MS))?"
+    "(:([[:digit:]]+)(us|US))?"
+    "(:([[:digit:]]+)(ns|NS))?");
+
+  std::pair<std::chrono::nanoseconds,std::tm> results({},{});
+
+  if(raw_str.empty())
+    throw std::runtime_error("empty duration and timespec");
+
+  std::size_t at_loc = raw_str.find('@');
+
+  if(at_loc != 0) {
+    std::smatch match;
+    if(!std::regex_match(raw_str.substr(0,at_loc),match,expr)) {
+      std::stringstream err;
+      err << "Invalid duration specification in: '" << raw_str << "'";
+      throw std::runtime_error(err.str());
+    }
+
+    try {
+      if(match[2].length())
+        results.first += std::chrono::hours(std::stoull(match[2]));
+      if(match[4].length())
+        results.first += std::chrono::minutes(std::stoull(match[4]));
+      if(match[6].length())
+        results.first += std::chrono::seconds(std::stoull(match[6]));
+      if(match[8].length())
+        results.first += std::chrono::milliseconds(std::stoull(match[8]));
+      if(match[11].length())
+        results.first += std::chrono::microseconds(std::stoull(match[11]));
+      if(match[14].length())
+        results.first += std::chrono::nanoseconds(std::stoull(match[14]));
+    }
+    catch (...) {
+      // if throw then error in validation regex
+      abort();
+    }
+  }
+  if(at_loc < raw_str.size()-1) {
+    std::istringstream in(raw_str.substr(at_loc+1));
+    in >> std::get_time(&results.second, "%Y-%m-%d %H:%M:%S");
+    if(!(!in.fail() && in.eof())) {
+      std::stringstream err;
+      err << "Invalid date and time specification in: '" << raw_str << "'";
+      throw std::runtime_error(err.str());
+    }
+  }
+
+  return results;
+}
+
+
+struct immediate_trigger_equal :
+  std::unary_function<const std::shared_ptr<timed_trigger> &,bool>
+{
+  immediate_trigger_equal(std::chrono::nanoseconds dur, const std::tm &when)
+    :_duration(dur), _when(&when) {}
+
+  bool operator()(const std::shared_ptr<timed_trigger> &trig) const {
+    return (trig->duration() == _duration) &&
+      std::memcmp(_when,&trig->when(),sizeof(std::tm)) == 0;
+  }
+
+  std::chrono::nanoseconds _duration;
+  const std::tm *_when;
+};
+
 
 
 void register_builtin(const std::shared_ptr<expansion_board> &expansion,
@@ -255,14 +377,23 @@ int main(int argc, char *argv[])
         "would be: 'foo#5'. If the id is missing, then the trigger is assumed "
         "to have id '0'. The system must be the name of a system previously "
         "set under --system or one of the following built-in sources:\n"
-        "    'immediate' - all sinks will be triggered immediately and will "
-        "continue until program exit.\n"
-//         "    [timespec] - the sink will be triggered according to the given "
-//         "timespec. If the timespec is an absolute time then "
-//         "the sinks will be triggered not before that time. If "
-//         "the timespec is a relative time, the sinks will be "
-//         "triggered no earlier than program execution start "
-//         "plus [timespec].\n"
+        "    [duration][@timespec] - the sink will be triggered for the given "
+        "duration at the indicated timespec. [duration] is a string of the "
+        "form: '[Xh][:Xm][:Xs][:Xms][:Xus][:Xns]' where 'X' is a non-negative "
+        "integer and h,m,s,ms,us,ns indicates the number of hours, minutes, "
+        "seconds, milliseconds, microseconds, and nanoseconds. Each grouping "
+        "is optional as long as it is separated by a colon. For example: "
+        "5m:1s means 5 minutes and one second. [timespec] is a date and time "
+        "parsed with the POSIX function strptime as '%Y-%m-%d %H:%M:%S'. That "
+        "is, a date and time string of the form 'YYYY-MM-DD hh:mm:ss' "
+        "where YYYY indicates the 4-digit year, MM indicates the 2-digit month "
+        "and DD indicates the 2-digit day, hh indicates the hour "
+        "(24 hour clock), mm indicates the 2-digit minute, and ss indicates "
+        "the 2-digit second. For example, the string '2017-02-28 12:15:06' "
+        "means 'noon plus 15 minutes and 6 seconds on February 28 of 2017'. "
+        "A missing [duration] means continue "
+        "forever and a missing [timespec] means start immediately. Thus "
+        "'--tsource=@' means 'start immediately and continue forever'.\n"
         "    N.B. A trigger sink must be configured for the "
         "system to be notified. See --tsink.")
       ("tsink",po::value<std::vector<std::string> >(),
@@ -433,13 +564,6 @@ int main(int argc, char *argv[])
     // determine and instantiate expansion system
     expansion_map_type expansion_map;
 
-    // add the builtins, do not enable. Only enable if they are defined as a
-    // trigger source/sink
-    register_builtin(std::shared_ptr<expansion_board>(new immediate_trigger()),
-      expansion_map,vm,"immediate");
-
-
-
     if(!vm.count("system"))
       throw std::runtime_error("Missing system configuration item");
 
@@ -480,29 +604,57 @@ int main(int argc, char *argv[])
       const std::vector<std::string> &tsource_vec =
         vm["tsource"].as<std::vector<std::string> >();
 
-      for(auto & tsource : tsource_vec) {
-        std::pair<std::size_t,std::shared_ptr<expansion_board> > result =
-          parse_trigger(expansion_map,tsource);
+      for(auto & tsource_str : tsource_vec) {
+        std::pair<std::size_t,std::string> triggerspec =
+          parse_triggerspec(tsource_str);
 
-        if(result.second->trigger_source_type() == trigger_type::none) {
-          std::stringstream err;
-          err << "Error: system: '" << result.second->system_description()
-            << "' cannot be configured as a trigger source";
-          throw std::runtime_error(err.str());
+        std::shared_ptr<expansion_board> tsource;
+
+        auto installed_expansion = expansion_map.find(triggerspec.second);
+        if(installed_expansion == expansion_map.end()) {
+          // not an expansion. try making an timed trigger
+          // ne may already exist though so
+          // build the key string and check. If so, use the currently installed
+          // one instead
+          auto timespec = parse_durtimespec(triggerspec.second);
+
+          tsource.reset(new timed_trigger(timespec.first,timespec.second));
+
+          std::string keystr = tsource->system_description();
+          installed_expansion = expansion_map.find(keystr);
+          if(installed_expansion == expansion_map.end()) {
+            // still not found, so add it
+            expansion_map[keystr] = tsource;
+
+            if(detail::is_verbose<3>(vm)) {
+              std::cout << "Created new trigger source: '"
+                << keystr << "\n";
+            }
+          }
+        }
+        else {
+          tsource = installed_expansion->second;
+
+          if(tsource->trigger_source_type() == trigger_type::none) {
+            std::stringstream err;
+            err << "Error: system: '" << tsource->system_description()
+              << "' cannot be configured as a trigger source";
+            throw std::runtime_error(err.str());
+          }
         }
 
-        if(trigger_sources.find(result.first) != trigger_sources.end()) {
+        if(trigger_sources.find(triggerspec.first) != trigger_sources.end()) {
           std::cerr << "Warning: duplicate trigger source id "
-            << result.first << " given in : '" << tsource << "'\n";
+            << triggerspec.first << " given in : '" << tsource_str << "'\n";
         }
 
-        trigger_sources.insert(result);
+        trigger_sources[triggerspec.first] = tsource;;
 
-        result.second->enable();
+        tsource->enable();
 
         if(detail::is_verbose<2>(vm))
-          std::cout << "Registered trigger source: '" << tsource
-            << "' for slot " << result.first << "\n";
+          std::cout << "Registered trigger source: '" << triggerspec.second
+            << "' for slot " << triggerspec.first << "\n";
       }
     }
 
@@ -511,33 +663,49 @@ int main(int argc, char *argv[])
       const std::vector<std::string> &tsink_vec =
         vm["tsink"].as<std::vector<std::string> >();
 
-      for(auto & tsink : tsink_vec) {
-        std::pair<std::size_t,std::shared_ptr<expansion_board> > result =
-          parse_trigger(expansion_map,tsink);
+      for(auto & tsink_str : tsink_vec) {
+//         std::pair<std::size_t,std::shared_ptr<expansion_board> > result =
+//           parse_trigger(expansion_map,tsink_str);
 
-        if(result.second->trigger_sink_type() == trigger_type::none) {
+        std::pair<std::size_t,std::string> triggerspec =
+          parse_triggerspec(tsink_str);
+
+        std::shared_ptr<expansion_board> tsink;
+
+        auto installed_expansion = expansion_map.find(triggerspec.second);
+
+        if(installed_expansion == expansion_map.end()) {
           std::stringstream err;
-          err << "Error: system: '" << result.second->system_description()
+          err << "Unknown expansion system in: '" << tsink_str << "' used as "
+            "a trigger sink";
+          throw std::runtime_error(err.str());
+        }
+
+        tsink = installed_expansion->second;
+
+        if(tsink->trigger_sink_type() == trigger_type::none) {
+          std::stringstream err;
+          err << "Error: system: '" << tsink->system_description()
             << "' cannot be configured as a trigger sink";
           throw std::runtime_error(err.str());
         }
 
-        auto & sink_set = trigger_sinks[result.first];
-        if(sink_set.find(result.second) != sink_set.end()) {
+        auto & sink_set = trigger_sinks[triggerspec.first];
+        if(sink_set.find(tsink) != sink_set.end()) {
           std::stringstream err;
           err << "Error: duplicate trigger sink: '"
-            << result.second->system_description()
-            << "' for id " << result.first;
+            << tsink->system_description()
+            << "' for id " << triggerspec.first;
           throw std::runtime_error(err.str());
         }
 
-        sink_set.insert(result.second);
+        sink_set.insert(tsink);
 
-        result.second->enable();
+        tsink->enable();
 
         if(detail::is_verbose<2>(vm))
-          std::cout << "Registered trigger sink: '" << tsink
-            << "' for slot " << result.first << "\n";
+          std::cout << "Registered trigger sink: '" << tsink_str
+            << "' for slot " << triggerspec.first << "\n";
       }
     }
 
@@ -620,63 +788,6 @@ int main(int argc, char *argv[])
     for(auto & pair : expansion_map)
       pair.second->finalize();
 
-
-
-
-
-
-#if 0
-    // configure trigger
-    std::unique_ptr<basic_trigger> trigger;
-
-    double duration = vm["duration"].as<double>();
-    if(std::signbit(duration)) {
-      trigger.reset(new indefinite_trigger());
-      if(vm.count("verbose"))
-        std::cout << "Collecting indefinitely\n";
-    }
-    else {
-      // convert from floating point time duration in seconds to timed_trigger's
-      // time duration representation (integer ticks)
-      typedef std::chrono::duration<double,
-        std::chrono::seconds::period> dseconds_type;
-
-      trigger.reset(new timed_trigger(dseconds_type(duration)));
-
-      if(vm.count("verbose"))
-        std::cout << "Collecting for " << duration << "seconds.\n";
-    }
-
-
-    // set up data handler
-    expansion_board::data_handler hdlr;
-
-    if(vm.count("outfile")) {
-      try {
-        hdlr = expansion_system->file_printer(
-            fs::path(vm["outfile"].as<std::string>()));
-      }
-      catch(const fs::filesystem_error &ex) {
-        std::stringstream err;
-        err << "File error for'" << vm["outfile"].as<std::string>()
-          << "'. " << ex.code() << ": " << ex.what();
-        throw std::runtime_error(err.str());
-      }
-    }
-    else {
-      hdlr = expansion_system->screen_printer();
-    }
-
-    // Setup communications, initialize, and go
-    expansion_system->setup_com();
-    expansion_system->initialize();
-//    expansion_system->trigger_sampling(hdlr,*trigger);
-
-    expansion_system->start();
-
-    expansion_system->finalize();
-
-#endif
   }
   catch(const std::exception &e) {
     std::cerr << e.what() << "\n";
