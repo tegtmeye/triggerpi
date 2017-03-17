@@ -31,7 +31,7 @@ triggerpi_SOURCES= \
 	bits.h \
 	expansion_board.h \
 	basic_trigger.h \
-	timed_trigger.h \
+	builtin_trigger.h \
 	basic_screen_printer.h \
 	basic_file_printer.h \
 	waveshare_ADS1256.h \

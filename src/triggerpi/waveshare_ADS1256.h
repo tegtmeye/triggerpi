@@ -93,8 +93,8 @@ class waveshare_ADS1256 :public ADC_board {
     // this->bit_depth() = 24, then the data is laid out as a 24 bit number
     // same for this->ADC_counts_signed(). If seconds is less than zero
     // then sample continusously
-    virtual void trigger_sampling(const data_handler &handler,
-      basic_trigger &trigger);
+//     virtual void trigger_sampling(const data_handler &handler,
+//       basic_trigger &trigger);
 
     virtual void finalize(void);
 

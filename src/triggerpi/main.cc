@@ -3,7 +3,7 @@
 #include "bits.h"
 #include "expansion_board.h"
 #include "waveshare_ADS1256.h"
-#include "timed_trigger.h"
+#include "builtin_trigger.h"
 
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
@@ -94,149 +94,13 @@ parse_triggerspec(const std::string &raw_str)
   return std::make_pair(trigger_id,board_str);
 }
 
-std::pair<std::tm,bool>
-parse_timespec(const std::string &raw_str, std::string &remainder)
-{
-  std::pair<std::tm,bool> result({},false);
-
-  std::istringstream in(raw_str);
-  in >> std::get_time(&result.first, timed_trigger::time_fmt());
-  if (!in.fail()) {
-    in >> remainder;
-    result.second = true;
-  }
-
-  return result;
-}
-
-std::pair<std::chrono::nanoseconds,bool>
-parse_durspec(const std::string &raw_str)
-{
-  static const std::regex expr("^"
-    "(([[:digit:]]+)[hH])"
-    "(:([[:digit:]]+)[mM])?"
-    "(:([[:digit:]]+)[sS])?"
-    "(:([[:digit:]]+)(ms|MS))?"
-    "(:([[:digit:]]+)(us|US))?"
-    "(:([[:digit:]]+)(ns|NS))?");
-
-  std::pair<std::chrono::nanoseconds,bool>
-    results(std::chrono::nanoseconds(0),false);
-
-  try {
-    std::smatch match;
-    if(!std::regex_match(raw_str,match,expr)) {
-      results.second = true;
-
-      if(match[2].length())
-        results.first += std::chrono::hours(std::stoull(match[2]));
-      if(match[4].length())
-        results.first += std::chrono::minutes(std::stoull(match[4]));
-      if(match[6].length())
-        results.first += std::chrono::seconds(std::stoull(match[6]));
-      if(match[8].length())
-        results.first += std::chrono::milliseconds(std::stoull(match[8]));
-      if(match[11].length())
-        results.first += std::chrono::microseconds(std::stoull(match[11]));
-      if(match[14].length())
-        results.first += std::chrono::nanoseconds(std::stoull(match[14]));
-    }
-  }
-  catch (...) {
-    // if throw then error in validation regex
-    abort();
-  }
-
-  return results;
-}
-
-std::pair<std::chrono::nanoseconds,std::tm>
-parse_durtimespec(const std::string &raw_str)
-{
-  static const std::regex expr("^"
-    "(([[:digit:]]+)[hH])"
-    "(:([[:digit:]]+)[mM])?"
-    "(:([[:digit:]]+)[sS])?"
-    "(:([[:digit:]]+)(ms|MS))?"
-    "(:([[:digit:]]+)(us|US))?"
-    "(:([[:digit:]]+)(ns|NS))?");
-
-  std::pair<std::chrono::nanoseconds,std::tm> results({},{});
-
-  if(raw_str.empty())
-    throw std::runtime_error("empty duration and timespec");
-
-  std::size_t at_loc = raw_str.find('@');
-
-  if(at_loc != 0) {
-    std::smatch match;
-    if(!std::regex_match(raw_str.substr(0,at_loc),match,expr)) {
-      std::stringstream err;
-      err << "Invalid duration specification in: '" << raw_str << "'";
-      throw std::runtime_error(err.str());
-    }
-
-    try {
-      if(match[2].length())
-        results.first += std::chrono::hours(std::stoull(match[2]));
-      if(match[4].length())
-        results.first += std::chrono::minutes(std::stoull(match[4]));
-      if(match[6].length())
-        results.first += std::chrono::seconds(std::stoull(match[6]));
-      if(match[8].length())
-        results.first += std::chrono::milliseconds(std::stoull(match[8]));
-      if(match[11].length())
-        results.first += std::chrono::microseconds(std::stoull(match[11]));
-      if(match[14].length())
-        results.first += std::chrono::nanoseconds(std::stoull(match[14]));
-    }
-    catch (...) {
-      // if throw then error in validation regex
-      abort();
-    }
-  }
-  if(at_loc < raw_str.size()-1) {
-    std::istringstream in(raw_str.substr(at_loc+1));
-    in >> std::get_time(&results.second, "%Y-%m-%d %H:%M:%S");
-    if(!(!in.fail() && in.eof())) {
-      std::stringstream err;
-      err << "Invalid date and time specification in: '" << raw_str << "'";
-      throw std::runtime_error(err.str());
-    }
-  }
-
-  return results;
-}
-
-
-struct immediate_trigger_equal :
-  std::unary_function<const std::shared_ptr<timed_trigger> &,bool>
-{
-  immediate_trigger_equal(std::chrono::nanoseconds dur, const std::tm &when)
-    :_duration(dur), _when(&when) {}
-
-  bool operator()(const std::shared_ptr<timed_trigger> &trig) const {
-    return (trig->duration() == _duration) &&
-      std::memcmp(_when,&trig->when(),sizeof(std::tm)) == 0;
-  }
-
-  std::chrono::nanoseconds _duration;
-  const std::tm *_when;
-};
 
 
 
-void register_builtin(const std::shared_ptr<expansion_board> &expansion,
-  expansion_map_type &expansion_map, const po::variables_map &vm,
-  const std::string &arg_name)
-{
-  if(detail::is_verbose<2>(vm))
-    std::cout << "Registering builtin expansion: '"
-      << expansion->system_description() << "'\n";
 
-  expansion->configure_options(vm);
-  expansion_map[arg_name] = expansion;
-}
+
+
+
 
 
 
@@ -379,11 +243,11 @@ int main(int argc, char *argv[])
         "set under --system or one of the following built-in sources:\n"
         "    [duration][@timespec] - the sink will be triggered for the given "
         "duration at the indicated timespec. [duration] is a string of the "
-        "form: '[Xh][:Xm][:Xs][:Xms][:Xus][:Xns]' where 'X' is a non-negative "
+        "form: '[Xh][Xm][Xs][Xms][Xus][Xns]' where 'X' is a non-negative "
         "integer and h,m,s,ms,us,ns indicates the number of hours, minutes, "
         "seconds, milliseconds, microseconds, and nanoseconds. Each grouping "
-        "is optional as long as it is separated by a colon. For example: "
-        "5m:1s means 5 minutes and one second. [timespec] is a date and time "
+        "is optional. For example: "
+        "5m1s means 5 minutes and one second. [timespec] is a date and time "
         "parsed with the POSIX function strptime as '%Y-%m-%d %H:%M:%S'. That "
         "is, a date and time string of the form 'YYYY-MM-DD hh:mm:ss' "
         "where YYYY indicates the 4-digit year, MM indicates the 2-digit month "
@@ -613,12 +477,10 @@ int main(int argc, char *argv[])
         auto installed_expansion = expansion_map.find(triggerspec.second);
         if(installed_expansion == expansion_map.end()) {
           // not an expansion. try making an timed trigger
-          // ne may already exist though so
+          // but it may already exist though so
           // build the key string and check. If so, use the currently installed
           // one instead
-          auto timespec = parse_durtimespec(triggerspec.second);
-
-          tsource.reset(new timed_trigger(timespec.first,timespec.second));
+          tsource = make_builtin_trigger(triggerspec.second);
 
           std::string keystr = tsource->system_description();
           installed_expansion = expansion_map.find(keystr);
@@ -628,8 +490,12 @@ int main(int argc, char *argv[])
 
             if(detail::is_verbose<3>(vm)) {
               std::cout << "Created new trigger source: '"
-                << keystr << "\n";
+                << tsource_str << "\n";
             }
+          }
+          else if(detail::is_verbose<3>(vm)) {
+            std::cout << "Reusing existing trigger source for spec: '"
+              << tsource_str << "\n";
           }
         }
         else {

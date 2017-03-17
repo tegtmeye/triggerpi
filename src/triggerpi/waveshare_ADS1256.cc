@@ -232,11 +232,11 @@ void waveshare_ADS1256::initialize(void)
 
 }
 
+#if 0
 
 void waveshare_ADS1256::trigger_sampling(const data_handler &handler,
   basic_trigger &trigger)
 {
-#if 0
   if(_async) {
     if(_stats)
       trigger_sampling_async_wstat_impl(handler,trigger);
@@ -249,8 +249,8 @@ void waveshare_ADS1256::trigger_sampling(const data_handler &handler,
     else
       trigger_sampling_impl(handler,trigger);
   }
-#endif
 }
+#endif
 
 void waveshare_ADS1256::run(void)
 {

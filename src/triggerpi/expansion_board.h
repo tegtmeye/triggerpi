@@ -8,7 +8,6 @@
 #include <config.h>
 
 #include "bits.h"
-#include "basic_trigger.h" // needs to go away
 
 #include <boost/program_options.hpp>
 #include <boost/rational.hpp>
