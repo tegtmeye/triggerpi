@@ -173,12 +173,12 @@ int main(int argc, char *argv[])
     // First parameter describes option name/short name
     // The second is parameter to option
     // The third is description
-    ("help,h", "Print this message")
-    ("version", "Print version string")
+    ("help,h", "Print this message\n")
+    ("version", "Print version string\n")
     ("verbose,v", po::value<unsigned int>()->implicit_value(1),
       "Be verbose. An optional level between 1 and 3 may be provided where "
       "-v1 (or --verbose=1) means least verbose and -v3 (or --verbose=3) "
-      "means debug.")
+      "means debug.\n")
     ("config,c", po::value<std::string>(),
       "  Use configuration file at <path>\n"
       "A configuration file used to define the relevant "
@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
       "configuration files but instead only use the one provided. "
       "All command line options will override the options "
       "set in any configuration file. [CONFIG_FILE] is a shortcut "
-      "for --config CONFIG_FILE")
+      "for --config CONFIG_FILE\n")
     ;
 
     const expansion_board::factory_map_type & registered_expansion =
@@ -214,52 +214,99 @@ int main(int argc, char *argv[])
       ("outfile,o", po::value<std::string>(),
         "  Output the configured channels into [file] according to format "
         "given by --format. If 'output' is not specified, output the "
-        "configured channels to screen unless the --silent options is given.")
+        "configured channels to screen unless the --silent options is given.\n")
       ("format,f", po::value<std::string>()->default_value("csv"),
         "  Output the configured channels into [file] according to the given "
         "format. Only meaningful if --output is also given. Currently the only "
-        "supported format is csv")
+        "supported format is csv\n")
       ("duration,d",po::value<double>()->default_value(-1),
         "  Collection duration in seconds. Specify a negative value "
         "for indefinite collection length. Note: collection performance "
         "and duration is affected and ultimately limited by available memory "
-        "or disk space depending on the value of --output and --format")
+        "or disk space depending on the value of --output and --format\n")
       ("async,a",po::value<bool>()->default_value(true),
         "  Hint to run in asynchronous mode if possible. That is, reading from "
         "the ADC and writing to memory/disk will run in separate threads. "
-        "This option will be overridden to 'false' for single-core CPUs")
+        "This option will be overridden to 'false' for single-core CPUs\n")
       ("stats",po::value<bool>()->default_value(true),
         "  Collect statistics on system performance. For the ADC, this "
-        "means that the per-sample delay is recorded.")
+        "means that the per-sample delay is recorded.\n")
       ("system,s",po::value<std::vector<std::string> >(),
         system_help_str.c_str())
       ("tsource",po::value<std::vector<std::string> >(),
         "  Set the trigger source with [id] to be [arg]. The trigger id is a "
         "positive and not necessarily sequential integer separated by the "
-        "source with the '#' character. For example, the "
+        "source with the '#' character. For example, if the "
         "'foo' system is set to be a trigger source for trigger id '5', [arg] "
         "would be: 'foo#5'. If the id is missing, then the trigger is assumed "
         "to have id '0'. The system must be the name of a system previously "
         "set under --system or one of the following built-in sources:\n"
-        "    [duration][@timespec] - the sink will be triggered for the given "
-        "duration at the indicated timespec. [duration] is a string of the "
-        "form: '[Xh][Xm][Xs][Xms][Xus][Xns]' where 'X' is a non-negative "
-        "integer and h,m,s,ms,us,ns indicates the number of hours, minutes, "
-        "seconds, milliseconds, microseconds, and nanoseconds. Each grouping "
-        "is optional. For example: "
-        "5m1s means 5 minutes and one second. [timespec] is a date and time "
-        "parsed with the POSIX function strptime as '%Y-%m-%d %H:%M:%S'. That "
-        "is, a date and time string of the form 'YYYY-MM-DD hh:mm:ss' "
-        "where YYYY indicates the 4-digit year, MM indicates the 2-digit month "
-        "and DD indicates the 2-digit day, hh indicates the hour "
-        "(24 hour clock), mm indicates the 2-digit minute, and ss indicates "
-        "the 2-digit second. For example, the string '2017-02-28 12:15:06' "
-        "means 'noon plus 15 minutes and 6 seconds on February 28 of 2017'. "
-        "A missing [duration] means continue "
-        "forever and a missing [timespec] means start immediately. Thus "
-        "'--tsource=@' means 'start immediately and continue forever'.\n"
-        "    N.B. A trigger sink must be configured for the "
-        "system to be notified. See --tsink.")
+        "   start[intervel]stop - the sink will be triggered at the "
+        "optionally given start with the optionally provided interval "
+        "continuing until the optionally provided stop. The 'start' and "
+        "'stop' specifications is either a time specification or a "
+        "duration specification indicating the wall time to start or the "
+        "duration to wait. If 'start' is not provided, the trigger will "
+        "fire immediately. If 'stop' is not provided, the trigger will "
+        "fire indefinetly. The 'interval' specification is of the form "
+        "'[on_dur:off_dur]' where 'on_dur' and 'off_dur' are both "
+        "duration specifications indicating the length of time the "
+        "trigger will be fired followed by the length of time the "
+        "trigger will be off. This pattern will repeat until stop if "
+        "provided. The time specification is a date and time parsed with "
+        "the POSIX function strptime as '%Y-%m-%d %H:%M:%S'. That is, a "
+        "date and time string of the form 'YYYY-MM-DD hh:mm:ss' where "
+        "YYYY indicates the 4-digit year, MM indicates the 2-digit month "
+        "and DD indicates the 2-digit day, hh indicates the hour (24 hour "
+        "clock), mm indicates the 2-digit minute, and ss indicates the "
+        "2-digit second. For example, the string '2017-02-28 12:15:06' "
+        "means 'noon plus 15 minutes and 6 seconds on February 28 of "
+        "2017'. The duration specification is a string of the form: "
+        "'[Xh][Xm][Xs][Xms][Xus][Xns]' where 'X' is a non-negative "
+        "integer and h,m,s,ms,us,ns indicates the number of hours, "
+        "minutes, seconds, milliseconds, microseconds, and nanoseconds. "
+        "Each grouping is optional. For example: 5m1s means 5 minutes and "
+        "one second.\nA word about start/stop time and duration. Time is "
+        "a funny thing. Absolute time is considered system time and "
+        "duration is considered elapsed time. For example, if the "
+        "time between execution start and the trigger start/stop timespec "
+        "spans a daylight savings time switch or clock adjustment due to "
+        "an NTP update, the trigger will behave as expected and "
+        "start/stop at the correct time. If the start/stop is given as a "
+        "duration, it is taken as an absolute duration from execution "
+        "start. That is, 2 seconds from now is not affected by any time "
+        "synchronization adjustments. This phenomenon also exhibits "
+        "itself when there is resource contention issues in a non "
+        "real-time OS (always). For example, if the start is given as a "
+        "timespec of noon, the trigger will not fire before noon but it "
+        "will very likely not fire at exactly noon but some time "
+        "after---the length depending on how resource constrained the "
+        "system is. Likewise for a given stop timespec. Therefore, the "
+        "total interval may be more or less depending on the systems "
+        "available resources. For example, a start of noon and a stop of "
+        "noon plus 1 second could be fired at noon plus 100 ms and the "
+        "stop at noon plus 1 second and 10 ms (case of less) or noon plus "
+        "1 second and 200 ms (case of more). Contrast this with a "
+        "duration spec. In this case, you are requesting the trigger "
+        "interval to be no less than the given duration. In a resource "
+        "constrained system, the total interval may be more but it will "
+        "never be less.\n"
+        "     Examples:\n\n"
+        "     -tsource=\"2017-02-28 12:15:06#2\"\n"
+        "     Create a builtin trigger at slot 2 and start at noon plus "
+        "15 minutes and 6 seconds on February 28 of 2017 and continue "
+        "indefinitely\n\n"
+        "     -tsource=\"2m[]2020-02-28 12:15:06\"\n"
+        "     Start 2 minutes from now and stop at noon plus 15 minutes "
+        "and 6 seconds on February 28 of 2020 and continue indefinitely\n\n"
+        "     -tsource=\"2m[100ms:100ms]\"\n"
+        "     Start 2 minutes from now, turn on for 100 ms and then off for "
+        "100 ms repeating indefinitely\n\n"
+        "     -tsource=\"[100ms:100ms]2m\"\n"
+        "     Start immediately, then repeatedly turn on for 100 ms and "
+        "then off for 100 ms until 2 minutes have elapsed\n\n"
+        "N.B. A trigger sink must be configured for the "
+        "source to be do anything. See --tsink.\n")
       ("tsink",po::value<std::vector<std::string> >(),
         "  Set the trigger sink with [id] to be [arg]. The trigger id is a "
         "positive and not necessarily sequential integer separated by the "

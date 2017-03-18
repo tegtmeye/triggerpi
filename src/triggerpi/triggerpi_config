@@ -52,7 +52,7 @@ system=waveshare_ADC
   # this value to the measured value here if you find it to be off or need
   # higher accuracy. Note, the reference voltage likely drifts as the chip
   # heats up. On my board, Vref is measured at a stable 2.524V which translates
-  # into a couple of hundreds of a volt offset which is starting to get into
+  # into a couple of hundredths of a volt offset which is starting to get into
   # the noise floor
   Vref=2.5
 
