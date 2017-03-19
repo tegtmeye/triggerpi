@@ -128,20 +128,20 @@ operator^(trigger_type __x, trigger_type __y)
 class expansion_board {
   public:
     /*
-      If a board trigger configuration is:
-        - none: This expansion is not a trigger source or sink depending on
-        where `c none is used
+      If a board trigger configuration is: - none: This expansion is not
+      a trigger source or sink depending on where `c none is used
 
-        - trigger_type::single_shot: the source is enabled and then optionally disabled at
-        some later point in time. Once disabled, it should never again be
-        enabled.
+        - trigger_type::single_shot: the source is enabled and then
+        optionally disabled at some later point in time. Once disabled,
+        it should never again be enabled.
 
         - intermittent: the source may be continuously enabled and then
         disabled. Intermittent implies trigger_type::single_shot
 
 
       The triggers may be 'or-ed' together if it can be used as either a
-      trigger_type::single_shot or intermittent. That is: (trigger_type::single_shot | intermittent).
+      trigger_type::single_shot or intermittent. That is:
+      (trigger_type::single_shot | intermittent).
     */
 
     typedef std::map<std::string,
@@ -199,14 +199,6 @@ class expansion_board {
     */
     virtual void run(void) = 0;
 
-    /*
-      Stop--may be called asynchronously
-
-      Pre: the board has been started
-      Post: The run function should return as soon as possible.
-    */
-     virtual void stop(void) {}
-
     // shutdown whatever communication mechanism is needed to talk to
     // this system.
     // Pre: setup_com() has been previously called
@@ -224,13 +216,27 @@ class expansion_board {
 
 
     // Trigger state query, waiting, and notification
-    void configure_trigger_sink(
-      const std::shared_ptr<expansion_board> &sink);
 
     /*
-      Wait until receiving a trigger from the configured trigger source
+      Wait until receiving a trigger start from the configured trigger source.
+      This returns the value of is_triggered(). That is, if
+      wait_on_trigger_start() returns true, the trigger was fired. If false,
+      then the trigger was not fired and the wake up was due to the trigger
+      source begin shut down.
+
+      Example of proper use would be:
+
+      if(!wait_on_trigger_start())
+        //exit the run function
+      else
+        // do something now that triggered
     */
-    void wait_on_trigger(void);
+    bool wait_on_trigger_start(void);
+
+    /*
+      Wait until receiving a trigger stop from the configured trigger source
+    */
+    void wait_on_trigger_stop(void);
 
     /*
       Return true if received a trigger from the configured trigger source
@@ -248,13 +254,25 @@ class expansion_board {
     void trigger_stop(void);
 
     /*
-      Enabling/disabling of this expansion
+      Let all listening trigger sinks know that they will not be receiving
+      any more trigger_start/stops and should should return from their run
+      function. This call is sticky, that is, any call to \c trigger_start or
+      \c trigger_stop will throw an error.
+
+      This call is optional and will be called automatically when the run
+      function returns. Reasons to call this manually would be if any
+      nontrivial computation needs to be done after the last trigger_stop.
     */
-    void enable(void) {_enabled = true;}
+    void trigger_shutdown(void);
 
-    void disable(void) {_enabled = false;}
 
-    bool is_enabled(void) const {return _enabled;}
+    /*
+      The trigger_stop has been called for the last time. Derived
+      classes should poll this regularly during execution of the run
+      function and return as soon as possible once \c final_trigger
+      returns true.
+    */
+    bool final_trigger(void) const;
 
     /*
       Trigger source/sink configuration
@@ -267,11 +285,34 @@ class expansion_board {
     trigger_type trigger_sink_type(void) const;
 
 
+    /*
+      Enabling/disabling of this expansion
+    */
+    void enable(void) {_enabled = true;}
+
+    void disable(void) {_enabled = false;}
+
+    bool is_enabled(void) const {return _enabled;}
+
+
+
+
+    /*
+      configure the trigger hierarchy. Not intended to be called by derived
+      classes
+    */
+    void configure_trigger_sink(
+      const std::shared_ptr<expansion_board> &sink);
+
+
   private:
+
     struct _trigger {
       std::mutex m;
       std::condition_variable cv;
       std::atomic<bool> _flag;
+
+      std::atomic<bool> _final;
     };
 
     static factory_map_type & _factory_map(void);
@@ -279,7 +320,8 @@ class expansion_board {
     // This object is a trigger source to other objects
     std::shared_ptr<_trigger> _trigger_source;
 
-    // This object listens as a trigger sink
+    // The object that we are listening to as a trigger sink
+    // (ie upstream object)
     std::shared_ptr<_trigger> _trigger_sink;
 
     bool _enabled;
@@ -332,39 +374,78 @@ inline void expansion_board::configure_trigger_sink(
   sink->_trigger_sink = _trigger_source;
 }
 
-inline void expansion_board::wait_on_trigger(void)
+inline bool expansion_board::wait_on_trigger_start(void)
 {
   assert(_trigger_sink);
 
   std::unique_lock<std::mutex> lk(_trigger_sink->m);
-  _trigger_sink->cv.wait(lk, [=]{return _trigger_sink->_flag.load();});
+  if(!_trigger_sink->_flag && !_trigger_sink->_final) {
+    _trigger_sink->cv.wait(lk,
+      [=] {
+        return (_trigger_sink->_flag || _trigger_sink->_final);
+      }
+    );
+  }
+
+  return _trigger_sink->_flag;
+}
+
+inline void expansion_board::wait_on_trigger_stop(void)
+{
+  assert(_trigger_sink);
+
+  std::unique_lock<std::mutex> lk(_trigger_sink->m);
+  if(_trigger_sink->_flag)
+    _trigger_sink->cv.wait(lk, [=]{return !_trigger_sink->_flag;});
 }
 
 inline bool expansion_board::is_triggered(void) const
 {
-  return (_trigger_sink && _trigger_sink->_flag.load());
+  return (_trigger_sink && _trigger_sink->_flag);
 }
 
 inline void expansion_board::trigger_start(void)
 {
+  assert(!(_trigger_source && _trigger_source->_final));
+
   if(!_trigger_source)
     return;
 
   std::unique_lock<std::mutex> lk(_trigger_source->m);
-  _trigger_source->_flag.store(true);
+  _trigger_source->_flag = true;
   lk.unlock();
   _trigger_source->cv.notify_all();
 }
 
 inline void expansion_board::trigger_stop(void)
 {
+  assert(!(_trigger_source && _trigger_source->_final));
+
   if(!_trigger_source)
     return;
 
   std::unique_lock<std::mutex> lk(_trigger_source->m);
-  _trigger_source->_flag.store(false);
+  _trigger_source->_flag = false;
   lk.unlock();
   _trigger_source->cv.notify_all();
+}
+
+inline void expansion_board::trigger_shutdown(void)
+{
+  if(!_trigger_source)
+    return;
+
+  std::unique_lock<std::mutex> lk(_trigger_source->m);
+  _trigger_source->_final = true;
+  lk.unlock();
+  _trigger_source->cv.notify_all();
+}
+
+inline bool expansion_board::final_trigger(void) const
+{
+  assert(_trigger_sink);
+
+  return _trigger_sink->_final;
 }
 
 inline trigger_type

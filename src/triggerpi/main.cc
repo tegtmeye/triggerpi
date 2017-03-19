@@ -140,6 +140,7 @@ void run_expansion_board(const std::shared_ptr<expansion_board> &expansion,
     _barrier->wait();
 
     expansion->run();
+    expansion->trigger_shutdown();
   }
   catch(const std::exception &e) {
     std::cerr << e.what() << "\n";
@@ -523,10 +524,16 @@ int main(int argc, char *argv[])
 
         auto installed_expansion = expansion_map.find(triggerspec.second);
         if(installed_expansion == expansion_map.end()) {
-          // not an expansion. try making an timed trigger
-          // but it may already exist though so
-          // build the key string and check. If so, use the currently installed
-          // one instead
+          /*
+            not an expansion. try making a builtin trigger but one with
+            the same spec may already exist though so build one and
+            check its hash located in the system description. If one
+            exists with the same triggerspec, use the currently
+            installed one instead. May seem inefficient to build an
+            object that may not be used but the vast majority of the
+            work is parsing the triggerspec string. Object construction
+            is minimal.
+          */
           tsource = make_builtin_trigger(triggerspec.second);
 
           std::string keystr = tsource->system_description();
@@ -537,15 +544,16 @@ int main(int argc, char *argv[])
 
             if(detail::is_verbose<3>(vm)) {
               std::cout << "Created new trigger source: '"
-                << tsource_str << "\n";
+                << tsource->system_description() << "\n";
             }
           }
           else if(detail::is_verbose<3>(vm)) {
             std::cout << "Reusing existing trigger source for spec: '"
-              << tsource_str << "\n";
+              << tsource->system_description() << "\n";
           }
         }
         else {
+          // a registered expansion exists so use it
           tsource = installed_expansion->second;
 
           if(tsource->trigger_source_type() == trigger_type::none) {
@@ -566,7 +574,8 @@ int main(int argc, char *argv[])
         tsource->enable();
 
         if(detail::is_verbose<2>(vm))
-          std::cout << "Registered trigger source: '" << triggerspec.second
+          std::cout << "Registered trigger source: '"
+            << tsource->system_description()
             << "' for slot " << triggerspec.first << "\n";
       }
     }
@@ -658,7 +667,10 @@ int main(int argc, char *argv[])
       }
       else {
         std::cerr << "Warning: configured trigger source at id "
-          << psource.first << " does not have a sink!\n";
+          << psource.first << " does not have a sink.\n  Disabling: "
+          << psource.second->system_description() << "\n";
+
+        psource.second->disable();
       }
     }
 

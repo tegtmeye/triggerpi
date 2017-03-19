@@ -256,9 +256,15 @@ void waveshare_ADS1256::run(void)
 {
   std::cerr << "waveshare_ADS1256 running!\n";
 
-  wait_on_trigger();
+  while(wait_on_trigger_start()) {
 
-  std::cerr << "Triggered!!!\n";
+    std::cerr << "Triggered!!!\n";
+
+    wait_on_trigger_stop();
+
+    std::cerr << "Not triggered!!!\n";
+  }
+  std::cerr << "waveshare_ADS1256 DONE!\n";
 }
 
 void waveshare_ADS1256::finalize(void)

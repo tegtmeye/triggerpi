@@ -141,9 +141,14 @@ class builtin_trigger :public expansion_board {
     }
 
   private:
+    static constexpr const char * system_prefix = "builtin trigger";
+
     std::function<void(void)> _run;
 
     std::string _ascii_str;
+
+    // convert to reduced string. ie lots of ns -> h,m,s,...
+    static std::string to_string(std::chrono::nanoseconds dur);
 };
 
 template<typename Clock1, typename Clock2>
@@ -163,7 +168,8 @@ builtin_trigger::builtin_trigger(
   };
 
   std::stringstream out;
-  out << start.time_since_epoch().count() << "[]"
+  out << system_prefix << " "
+    << start.time_since_epoch().count() << "[]"
     << stop.time_since_epoch().count();
   _ascii_str = out.str();
 }
@@ -184,7 +190,8 @@ builtin_trigger::builtin_trigger(
   };
 
   std::stringstream out;
-  out << start.count() << "ns[]"
+  out << system_prefix << " "
+    << to_string(start) << "[]"
     << stop.time_since_epoch().count();
   _ascii_str = out.str();
 }
@@ -199,15 +206,16 @@ builtin_trigger::builtin_trigger(
 
     trigger_start();
 
-    std::this_thread::sleep_until(std::chrono::steady_clock::now()+stop);
+    std::this_thread::sleep_for(stop);
 
 
     trigger_stop();
   };
 
   std::stringstream out;
-  out << start.time_since_epoch().count() << "[]"
-    << stop.count() << "ns";
+  out << system_prefix << " "
+    << start.time_since_epoch().count() << "[]"
+    << to_string(stop);
   _ascii_str = out.str();
 }
 
@@ -216,20 +224,18 @@ builtin_trigger::builtin_trigger(std::chrono::nanoseconds start,
     :expansion_board(trigger_type::intermittent,trigger_type::none)
 {
   _run = [=](void) {
-    std::chrono::steady_clock::time_point later =
-      std::chrono::steady_clock::now()+stop;
-
     std::this_thread::sleep_until(std::chrono::steady_clock::now()+start);
 
     trigger_start();
 
-    std::this_thread::sleep_until(later);
+    std::this_thread::sleep_for(stop);
 
     trigger_stop();
   };
 
   std::stringstream out;
-  out << start.count() << "ns[]" << stop.count() << "ns";
+  out << system_prefix << " "
+    << to_string(start) << "[]" << to_string(stop);
   _ascii_str = out.str();
 }
 
@@ -248,7 +254,8 @@ builtin_trigger::builtin_trigger(
   };
 
   std::stringstream out;
-  out << start.time_since_epoch().count() << "[]";
+  out << system_prefix << " "
+    << start.time_since_epoch().count() << "[]";
   _ascii_str = out.str();
 }
 
@@ -265,7 +272,8 @@ builtin_trigger::builtin_trigger(
   };
 
   std::stringstream out;
-  out << start.count() << "ns[]";
+  out << system_prefix << " "
+    << to_string(start) << "[]";
   _ascii_str = out.str();
 }
 
@@ -285,7 +293,8 @@ builtin_trigger::builtin_trigger(bool,
   };
 
   std::stringstream out;
-  out << "[]" << stop.time_since_epoch().count();
+  out << system_prefix << " "
+    << "[]" << stop.time_since_epoch().count();
   _ascii_str = out.str();
 }
 
@@ -296,13 +305,14 @@ builtin_trigger::builtin_trigger(
   _run = [=](void) {
     trigger_start();
 
-    std::this_thread::sleep_until(std::chrono::steady_clock::now()+stop);
+    std::this_thread::sleep_for(stop);
 
     trigger_stop();
   };
 
   std::stringstream out;
-  out << "[]" << stop.count() << "ns";
+  out << system_prefix << " "
+    << "[]" << to_string(stop);
   _ascii_str = out.str();
 }
 
@@ -327,9 +337,10 @@ builtin_trigger::builtin_trigger(
   };
 
   std::stringstream out;
-  out << start.time_since_epoch().count()
+  out << system_prefix << " "
+    << start.time_since_epoch().count()
     << "["
-    << on_dur.count() << "ns:" << off_dur.count() << "ns"
+    << to_string(on_dur) << ":" << to_string(off_dur)
     << "]"
     << stop.time_since_epoch().count();
   _ascii_str = out.str();
@@ -356,9 +367,10 @@ builtin_trigger::builtin_trigger(std::chrono::nanoseconds start,
   };
 
   std::stringstream out;
-  out << start.count() << "ns"
+  out << system_prefix << " "
+    << to_string(start)
     << "["
-    << on_dur.count() << "ns:" << off_dur.count() << "ns"
+    << to_string(on_dur) << ":" << to_string(off_dur)
     << "]"
     << stop.time_since_epoch().count();
   _ascii_str = out.str();
@@ -372,10 +384,10 @@ builtin_trigger::builtin_trigger(
     :expansion_board(trigger_type::intermittent,trigger_type::none)
 {
   _run = [=](void) {
+    std::this_thread::sleep_until(start);
+
     std::chrono::steady_clock::time_point later =
       std::chrono::steady_clock::now() + stop;
-
-    std::this_thread::sleep_until(start);
 
     while(std::chrono::steady_clock::now()+on_dur+off_dur < later) {
       trigger_start();
@@ -388,11 +400,12 @@ builtin_trigger::builtin_trigger(
   };
 
   std::stringstream out;
-  out << start.time_since_epoch().count()
+  out << system_prefix << " "
+    << start.time_since_epoch().count()
     << "["
-    << on_dur.count() << "ns:" << off_dur.count() << "ns"
+    << to_string(on_dur) << ":" << to_string(off_dur)
     << "]"
-    << stop.count() << "ns";
+    << to_string(stop);
   _ascii_str = out.str();
 }
 
@@ -402,10 +415,10 @@ builtin_trigger::builtin_trigger(std::chrono::nanoseconds start,
     :expansion_board(trigger_type::intermittent,trigger_type::none)
 {
   _run = [=](void) {
+    std::this_thread::sleep_until(std::chrono::steady_clock::now()+start);
+
     std::chrono::steady_clock::time_point later =
       std::chrono::steady_clock::now()+stop;
-
-    std::this_thread::sleep_until(std::chrono::steady_clock::now()+start);
 
     while(std::chrono::steady_clock::now()+on_dur+off_dur < later) {
       trigger_start();
@@ -418,11 +431,12 @@ builtin_trigger::builtin_trigger(std::chrono::nanoseconds start,
   };
 
   std::stringstream out;
-  out << start.count() << "ns"
+  out << system_prefix << " "
+    << to_string(start)
     << "["
-    << on_dur.count() << "ns:" << off_dur.count() << "ns"
+    << to_string(on_dur) << ":" << to_string(off_dur)
     << "]"
-    << stop.count() << "ns";
+    << to_string(stop);
   _ascii_str = out.str();
 }
 
@@ -447,9 +461,10 @@ builtin_trigger::builtin_trigger(
   };
 
   std::stringstream out;
-  out << start.time_since_epoch().count()
+  out << system_prefix << " "
+    << start.time_since_epoch().count()
     << "["
-    << on_dur.count() << "ns:" << off_dur.count() << "ns"
+    << to_string(on_dur) << ":" << to_string(off_dur)
     << "]";
   _ascii_str = out.str();
 }
@@ -472,9 +487,10 @@ builtin_trigger::builtin_trigger(std::chrono::nanoseconds start,
   };
 
   std::stringstream out;
-  out << start.count() << "ns"
+  out << system_prefix << " "
+    << to_string(start)
     << "["
-    << on_dur.count() << "ns:" << off_dur.count() << "ns"
+    << to_string(on_dur) << ":" << to_string(off_dur)
     << "]";
   _ascii_str = out.str();
 }
@@ -497,9 +513,9 @@ builtin_trigger::builtin_trigger(
   };
 
   std::stringstream out;
-  out
+  out << system_prefix << " "
     << "["
-    << on_dur.count() << "ns:" << off_dur.count() << "ns"
+    << to_string(on_dur) << ":" << to_string(off_dur)
     << "]"
     << stop.time_since_epoch().count();
   _ascii_str = out.str();
@@ -525,15 +541,50 @@ builtin_trigger::builtin_trigger(bool,
   };
 
   std::stringstream out;
-  out
+  out << system_prefix << " "
     << "["
-    << on_dur.count() << "ns:" << off_dur.count() << "ns"
+    << to_string(on_dur) << ":" << to_string(off_dur)
     << "]"
-    << stop.count() << "ns";
+    << to_string(stop);
   _ascii_str = out.str();
 }
 
+std::string builtin_trigger::to_string(std::chrono::nanoseconds dur)
+{
+  std::chrono::hours::rep hours =
+    std::chrono::duration_cast<std::chrono::hours>(dur).count();
+  std::chrono::minutes::rep min =
+    std::chrono::duration_cast<std::chrono::minutes>(
+      dur % std::chrono::hours(1)).count();
+  std::chrono::seconds::rep sec =
+    std::chrono::duration_cast<std::chrono::seconds>(
+      dur % std::chrono::minutes(1)).count();
+  std::chrono::milliseconds::rep ms =
+    std::chrono::duration_cast<std::chrono::milliseconds>(
+      dur % std::chrono::seconds(1)).count();
+  std::chrono::microseconds::rep us =
+    std::chrono::duration_cast<std::chrono::microseconds>(
+      dur % std::chrono::milliseconds(1)).count();
+  std::chrono::nanoseconds::rep ns =
+    std::chrono::duration_cast<std::chrono::nanoseconds>(
+      dur % std::chrono::microseconds(1)).count();
 
+  std::stringstream out;
+    if(hours)
+      out << hours << "h";
+    if(min)
+      out << min << "m";
+    if(sec)
+      out << sec << "s";
+    if(ms)
+      out << ms << "ms";
+    if(us)
+      out << us << "us";
+    if(ns)
+      out << ns << "ns";
+
+  return out.str();
+}
 
 
 
@@ -579,49 +630,44 @@ std::pair<std::chrono::nanoseconds,bool>
 parse_durspec(const std::basic_string<CharT> &raw_str)
 {
   /*
-  uses backreferences so doesn't work
- (?:(?:^([[:digit:]]+)[hH])|(?:(?<!^):([[:digit:]]+)[hH]))?
- (?:(?:^([[:digit:]]+)[mM](?![sS]))|(?:(?<!^):([[:digit:]]+)[mM](?![sS])))?
- (?:(?:^([[:digit:]]+)[sS])|(?:(?<!^):([[:digit:]]+)[sS]))?
- (?:(?:^([[:digit:]]+)m[sS])|(?:(?<!^):([[:digit:]]+)m[sS]))?
- (?:(?:^([[:digit:]]+)u[sS])|(?:(?<!^):([[:digit:]]+)u[sS]))?
- (?:(?:^([[:digit:]]+)n[sS])|(?:(?<!^):([[:digit:]]+)n[sS]))?
-
-(([[:digit:]]+)[hH])?(([[:digit:]]+)[mM](?![sS]))?(([[:digit:]]+)[sS])?(([[:digit:]]+)m[sS])?(([[:digit:]]+)u[sS])?(([[:digit:]]+)n[sS])?
+    uses backreferences so doesn't work
+   (?:(?:^([[:digit:]]+)[hH])|(?:(?<!^):([[:digit:]]+)[hH]))?
+   (?:(?:^([[:digit:]]+)[mM](?![sS]))|(?:(?<!^):([[:digit:]]+)[mM](?![sS])))?
+   (?:(?:^([[:digit:]]+)[sS])|(?:(?<!^):([[:digit:]]+)[sS]))?
+   (?:(?:^([[:digit:]]+)m[sS])|(?:(?<!^):([[:digit:]]+)m[sS]))?
+   (?:(?:^([[:digit:]]+)u[sS])|(?:(?<!^):([[:digit:]]+)u[sS]))?
+   (?:(?:^([[:digit:]]+)n[sS])|(?:(?<!^):([[:digit:]]+)n[sS]))?
   */
-//   static const std::regex expr("^"
-//     "(([[:digit:]]+)[hH])?"
-//     "(:([[:digit:]]+)[mM])?"
-//     "(:([[:digit:]]+)[sS])?"
-//     "(:([[:digit:]]+)(ms|MS))?"
-//     "(:([[:digit:]]+)(us|US))?"
-//     "(:([[:digit:]]+)(ns|NS))?");
 
   static const std::regex expr(
-    "(([[:digit:]]+)[hH])?"
-    "(([[:digit:]]+)[mM](?![sS]))?"
-    "(([[:digit:]]+)[sS])?"
-    "(([[:digit:]]+)m[sS])?"
-    "(([[:digit:]]+)u[sS])?"
-    "(([[:digit:]]+)n[sS])?");
+    "(?:([[:digit:]]+)[hH])?"
+    "(?:([[:digit:]]+)[mM](?![sS]))?"
+    "(?:([[:digit:]]+)[sS])?"
+    "(?:([[:digit:]]+)(?:ms|MS))?"
+    "(?:([[:digit:]]+)(?:us|US))?"
+    "(?:([[:digit:]]+)(?:ns|NS))?");
 
-  std::pair<std::chrono::nanoseconds,bool> results{{},false};
+  std::pair<std::chrono::nanoseconds,bool> results =
+    {std::chrono::nanoseconds::zero(),false};
 
   std::smatch match;
   if(std::regex_match(raw_str,match,expr)) {
     try {
+// std::cerr << "Matches: \n";
+// for(std::size_t i=0; i<match.size(); ++i)
+//   std::cerr << "  " << i << " '" << match[i] << "'\n";
+      if(match[1].length())
+        results.first += std::chrono::hours(std::stoull(match[1]));
       if(match[2].length())
-        results.first += std::chrono::hours(std::stoull(match[2]));
+        results.first += std::chrono::minutes(std::stoull(match[2]));
+      if(match[3].length())
+        results.first += std::chrono::seconds(std::stoull(match[3]));
       if(match[4].length())
-        results.first += std::chrono::minutes(std::stoull(match[4]));
+        results.first += std::chrono::milliseconds(std::stoull(match[4]));
+      if(match[5].length())
+        results.first += std::chrono::microseconds(std::stoull(match[5]));
       if(match[6].length())
-        results.first += std::chrono::seconds(std::stoull(match[6]));
-      if(match[8].length())
-        results.first += std::chrono::milliseconds(std::stoull(match[8]));
-      if(match[11].length())
-        results.first += std::chrono::microseconds(std::stoull(match[11]));
-      if(match[14].length())
-        results.first += std::chrono::nanoseconds(std::stoull(match[14]));
+        results.first += std::chrono::nanoseconds(std::stoull(match[6]));
 
       results.second = true;
     }
@@ -725,23 +771,22 @@ make_builtin_trigger(const std::basic_string<CharT> &raw_str)
     start_timespec = parse_timespec(start_raw);
 
     if(!start_timespec.second) {
-      std::pair<std::chrono::nanoseconds,bool> durspec =
-        parse_durspec(start_raw);
+      start_durspec = parse_durspec(start_raw);
 
-      if(!durspec.second || durspec.first == std::chrono::nanoseconds::zero()) {
+      if(!start_durspec.second) {
         std::stringstream err;
         err << "Invalid builtin trigger start specification in '"
           << start_raw << "'";
         throw std::runtime_error(err.str());
       }
-
-      start_durspec.second = true;
     }
   }
 
   if(!on_raw.empty()) {
     on_durspec = parse_durspec(on_raw);
-    if(!on_durspec.second) {
+    if(!on_durspec.second ||
+      on_durspec.first == std::chrono::nanoseconds::zero())
+    {
       std::stringstream err;
       err << "Invalid builtin trigger interval on value in '"
         << on_raw << "'";
@@ -751,7 +796,9 @@ make_builtin_trigger(const std::basic_string<CharT> &raw_str)
 
   if(!off_raw.empty()) {
     off_durspec = parse_durspec(off_raw);
-    if(!off_durspec.second) {
+    if(!off_durspec.second ||
+      off_durspec.first == std::chrono::nanoseconds::zero())
+    {
       std::stringstream err;
       err << "Invalid builtin trigger interval off value in '"
         << off_raw << "'";
@@ -763,17 +810,14 @@ make_builtin_trigger(const std::basic_string<CharT> &raw_str)
     stop_timespec = parse_timespec(stop_raw);
 
     if(!stop_timespec.second) {
-      std::pair<std::chrono::nanoseconds,bool> durspec =
-        parse_durspec(stop_raw);
+      stop_durspec = parse_durspec(stop_raw);
 
-      if(!durspec.second || durspec.first == std::chrono::nanoseconds::zero()) {
+      if(!stop_durspec.second) {
         std::stringstream err;
-        err << "Invalid builtin trigger stop specification in '"
-          << start_raw << "'";
+        err << "Invalid builtin trigger start specification in '"
+          << stop_raw << "'";
         throw std::runtime_error(err.str());
       }
-
-      stop_durspec.second = true;
     }
   }
 
@@ -781,14 +825,38 @@ make_builtin_trigger(const std::basic_string<CharT> &raw_str)
       (start_timespec.second && stop_timespec.second &&
         stop_timespec.first <= start_timespec.first)
     ||
-      (start_durspec.second && stop_durspec.second &&
-        stop_durspec.first <= start_durspec.first)
+      (start_durspec.second && stop_timespec.second &&
+        std::chrono::system_clock::now()+start_durspec.first <=
+          stop_timespec.first)
     )
   {
     std::stringstream err;
     err << "Builtin trigger stop time must be greater than the start time";
     throw std::runtime_error(err.str());
   }
+
+  /*
+  std::cerr << "start_raw: " << start_raw << "\n"
+    << "  start_timespec: " << start_timespec.first.time_since_epoch().count()
+      << " -> " << start_timespec.second << "\n"
+    << "  start_durspec: " << start_durspec.first.count() << "ns -> "
+      << start_durspec.second << "\n";
+
+  std::cerr << "on_raw: " << on_raw << "\n"
+    << "  on_durspec: " << on_durspec.first.count() << "ns -> "
+      << on_durspec.second << "\n";
+
+  std::cerr << "off_raw: " << off_raw << "\n"
+    << "  off_durspec: " << off_durspec.first.count() << "ns -> "
+      << off_durspec.second << "\n";
+
+
+  std::cerr << "stop_raw: " << stop_raw << "\n"
+    << "  stop_timespec: " << stop_timespec.first.time_since_epoch().count()
+      << " -> " << stop_timespec.second << "\n"
+    << "  stop_durspec: " << stop_durspec.first.count() << "ns -> "
+      << stop_durspec.second << "\n";
+  */
 
   /*
     convenience breakdown. Possible cases are
