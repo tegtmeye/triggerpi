@@ -204,6 +204,10 @@ void waveshare_ADS1256::setup_com(void)
 
 void waveshare_ADS1256::initialize(void)
 {
+  if(!is_trigger_sink()) {
+    throw std::runtime_error("No Source trigger!");
+  }
+
   return;
 
   // probably should force reset first

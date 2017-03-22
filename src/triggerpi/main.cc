@@ -3,7 +3,7 @@
 #include "bits.h"
 #include "expansion_board.h"
 #include "waveshare_ADS1256.h"
-#include "builtin_trigger.h"
+#include "trigger_chain.h"
 
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
@@ -29,6 +29,15 @@ namespace chrono = std::chrono;
 
 typedef std::map<std::string,
   std::shared_ptr<expansion_board> > expansion_map_type;
+
+typedef std::pair<std::shared_ptr<expansion_board>,
+  std::shared_ptr<expansion_board> > trigger_chain;
+
+
+
+
+
+
 
 // attempt to get user defaults directory in a platform agnostic way
 fs::path user_pref_dir(void)
@@ -134,9 +143,6 @@ void run_expansion_board(const std::shared_ptr<expansion_board> &expansion,
   barrier *_barrier)
 {
   try {
-    expansion->setup_com();
-    expansion->initialize();
-
     _barrier->wait();
 
     expansion->run();
@@ -316,7 +322,10 @@ int main(int argc, char *argv[])
         "would be: 'foo#5'. If the id is missing, then the trigger is assumed "
         "to have id '0'. The system must be the name of a system previously "
         "set under --system. A trigger source must be configured for the "
-        "system to be notified. See --tsource.")
+        "system to be notified. See --tsource.\n")
+      ("trigger",po::value<std::vector<std::string> >(),
+        "  Set a trigger chain of the form: "
+        "sourcespec[|source_sinkspec]...|sinkspec[#label]\n")
       ;
 
 
@@ -473,8 +482,16 @@ int main(int argc, char *argv[])
 
     // check for required configuration items
 
-    // determine and instantiate expansion system
-    expansion_map_type expansion_map;
+    /*
+      production map is a mapping of named trigger_productions. All
+      registered systems are also a named trigger production of size 1
+    */
+    std::map<std::string,trigger_chain> production_map;
+
+    /*
+      expansion set is a set of all registered expansions
+    */
+    std::set<std::shared_ptr<expansion_board> > expansion_set;
 
     if(!vm.count("system"))
       throw std::runtime_error("Missing system configuration item");
@@ -491,7 +508,7 @@ int main(int argc, char *argv[])
         throw std::runtime_error(err.str());
       }
 
-      if(expansion_map.find(system) != expansion_map.end()) {
+      if(production_map.find(system) != production_map.end()) {
         std::stringstream err;
         err << "Duplicate system: '" << system << "'";
         throw std::runtime_error(err.str());
@@ -503,205 +520,114 @@ int main(int argc, char *argv[])
         std::cout << "Registering expansion: '"
           << expansion->system_description() << "'\n";
 
-      expansion->configure_options(vm);
+      // each system is added as a production of size 1
+      production_map[system] = trigger_chain(expansion,expansion);
 
-      expansion_map[system] = expansion;
+      expansion_set.emplace(expansion);
     }
 
-    std::map<std::size_t,std::shared_ptr<expansion_board> > trigger_sources;
-    std::map<std::size_t,
-      std::set<std::shared_ptr<expansion_board> > > trigger_sinks;
+    if(vm.count("trigger")) {
+      const std::vector<std::string> &trigger_vec =
+        vm["trigger"].as<std::vector<std::string> >();
 
-    if(vm.count("tsource")) {
-      const std::vector<std::string> &tsource_vec =
-        vm["tsource"].as<std::vector<std::string> >();
 
-      for(auto & tsource_str : tsource_vec) {
-        std::pair<std::size_t,std::string> triggerspec =
-          parse_triggerspec(tsource_str);
+      for(auto & str : trigger_vec) {
+        std::string::const_iterator loc = std::find(str.begin(),str.end(),'@');
 
-        std::shared_ptr<expansion_board> tsource;
+        std::string trigger_spec(str.begin(),loc);
 
-        auto installed_expansion = expansion_map.find(triggerspec.second);
-        if(installed_expansion == expansion_map.end()) {
-          /*
-            not an expansion. try making a builtin trigger but one with
-            the same spec may already exist though so build one and
-            check its hash located in the system description. If one
-            exists with the same triggerspec, use the currently
-            installed one instead. May seem inefficient to build an
-            object that may not be used but the vast majority of the
-            work is parsing the triggerspec string. Object construction
-            is minimal.
-          */
-          tsource = make_builtin_trigger(triggerspec.second);
+        std::string label;
+        if(loc != str.end()) {
+          label.assign(++loc,str.end());
+        }
 
-          std::string keystr = tsource->system_description();
-          installed_expansion = expansion_map.find(keystr);
-          if(installed_expansion == expansion_map.end()) {
-            // still not found, so add it
-            expansion_map[keystr] = tsource;
+        std::vector<trigger_production> new_prod =
+          make_trigger_chain(trigger_spec,production_map);
+        assert(!new_prod.empty());
 
-            if(detail::is_verbose<3>(vm)) {
-              std::cout << "Created new trigger source: '"
-                << tsource->system_description() << "\n";
+        /*
+          new_prod is considered to be well formed but unlinked
+          and may contain new builtin expansions. Ensure new expansions
+          are contained in expansion_set. Simply calling emplace works
+          because: if the prod refers to a new expansion, prod.first ==
+          prod.second. No new expansions will be embedded in between
+          prod.first and prod.second. Emplace will only add the
+          expansion if it doesn't already exist
+        */
+        for(auto trig_prod : new_prod) {
+          const auto &result_pair = expansion_set.emplace(trig_prod.first);
+
+          if(result_pair.second && detail::is_verbose<2>(vm)) {
+            std::cout << "Registered builtin trigger '"
+              << (*result_pair.first)->system_description() << "'\n";
+          }
+        }
+
+        // now link the production together
+        for(std::size_t i=1; i<new_prod.size(); ++i)
+          new_prod[i-1].second->configure_trigger_sink(new_prod[i].first);
+
+        // add the production to the named production map if so labeled
+        if(!label.empty()) {
+          production_map[label] =
+            trigger_chain(new_prod.front().first,new_prod.front().second);
+        }
+
+        if(detail::is_verbose<3>(vm)) {
+          if(label.empty())
+            std::cout << "Created anonymous production:\n";
+          else
+            std::cout << "Assigned label '" << label << "' to production:\n";
+
+          for(auto &trig_prod : new_prod) {
+            if(trig_prod.first == trig_prod.second) {
+              std::cout << "  '"
+                << trig_prod.first->system_description() << "'\n";
+            }
+            else {
+              std::cout << "  '"
+                << trig_prod.first->system_description() << "' ... '"
+                << trig_prod.second->system_description() << "'\n";
             }
           }
-          else if(detail::is_verbose<3>(vm)) {
-            std::cout << "Reusing existing trigger source for spec: '"
-              << tsource->system_description() << "\n";
-          }
-        }
-        else {
-          // a registered expansion exists so use it
-          tsource = installed_expansion->second;
-
-          if(tsource->trigger_source_type() == trigger_type::none) {
-            std::stringstream err;
-            err << "Error: system: '" << tsource->system_description()
-              << "' cannot be configured as a trigger source";
-            throw std::runtime_error(err.str());
-          }
-        }
-
-        if(trigger_sources.find(triggerspec.first) != trigger_sources.end()) {
-          std::cerr << "Warning: duplicate trigger source id "
-            << triggerspec.first << " given in : '" << tsource_str << "'\n";
-        }
-
-        trigger_sources[triggerspec.first] = tsource;;
-
-        tsource->enable();
-
-        if(detail::is_verbose<2>(vm))
-          std::cout << "Registered trigger source: '"
-            << tsource->system_description()
-            << "' for slot " << triggerspec.first << "\n";
-      }
-    }
-
-
-    if(vm.count("tsink")) {
-      const std::vector<std::string> &tsink_vec =
-        vm["tsink"].as<std::vector<std::string> >();
-
-      for(auto & tsink_str : tsink_vec) {
-//         std::pair<std::size_t,std::shared_ptr<expansion_board> > result =
-//           parse_trigger(expansion_map,tsink_str);
-
-        std::pair<std::size_t,std::string> triggerspec =
-          parse_triggerspec(tsink_str);
-
-        std::shared_ptr<expansion_board> tsink;
-
-        auto installed_expansion = expansion_map.find(triggerspec.second);
-
-        if(installed_expansion == expansion_map.end()) {
-          std::stringstream err;
-          err << "Unknown expansion system in: '" << tsink_str << "' used as "
-            "a trigger sink";
-          throw std::runtime_error(err.str());
-        }
-
-        tsink = installed_expansion->second;
-
-        if(tsink->trigger_sink_type() == trigger_type::none) {
-          std::stringstream err;
-          err << "Error: system: '" << tsink->system_description()
-            << "' cannot be configured as a trigger sink";
-          throw std::runtime_error(err.str());
-        }
-
-        auto & sink_set = trigger_sinks[triggerspec.first];
-        if(sink_set.find(tsink) != sink_set.end()) {
-          std::stringstream err;
-          err << "Error: duplicate trigger sink: '"
-            << tsink->system_description()
-            << "' for id " << triggerspec.first;
-          throw std::runtime_error(err.str());
-        }
-
-        sink_set.insert(tsink);
-
-        tsink->enable();
-
-        if(detail::is_verbose<2>(vm))
-          std::cout << "Registered trigger sink: '" << tsink_str
-            << "' for slot " << triggerspec.first << "\n";
-      }
-    }
-
-    /*
-      register the sinks with all of the sources. If the source and sinks have
-      incompatible trigger_types, then throw an error.
-    */
-    for(auto & psource : trigger_sources) {
-      auto sink_iter = trigger_sinks.find(psource.first);
-      if(sink_iter != trigger_sinks.end()) {
-        if(detail::is_verbose<2>(vm))
-          std::cout << "Configuring trigger #: source -> sink\n";
-
-        for(auto &sink : sink_iter->second) {
-          trigger_type trig =
-            (psource.second->trigger_source_type() & sink->trigger_sink_type());
-
-          if(trig == trigger_type::none) {
-            std::stringstream err;
-            err << "Error: incompatible trigger types: '"
-              << psource.second->system_description() << "' configured as: "
-              << to_string(psource.second->trigger_source_type())
-              << "' and system: '"
-              << sink->system_description() << "' configured as: "
-              << to_string(sink->trigger_sink_type());
-            throw std::runtime_error(err.str());
-          }
-
-          if(detail::is_verbose<2>(vm)) {
-            std::cout << "  #" << sink_iter->first
-              << ": '" << psource.second->system_description()
-              << "' -> '" << sink->system_description() << "\n";
-          }
-
-          psource.second->configure_trigger_sink(sink);
-        }
-      }
-      else {
-        std::cerr << "Warning: configured trigger source at id "
-          << psource.first << " does not have a sink.\n  Disabling: "
-          << psource.second->system_description() << "\n";
-
-        psource.second->disable();
-      }
-    }
-
-    // check to ensure all sinks have sources
-    for(auto & psink : trigger_sinks) {
-      auto source_iter = trigger_sources.find(psink.first);
-      if(source_iter == trigger_sources.end()) {
-        std::cerr << "Warning: configured trigger sink(s) at id "
-          << psink.first << " does not have a source.\n";
-        for(auto & sink : psink.second) {
-          std::cerr << "  Disabling: " << sink->system_description() << "\n";
-          sink->disable();
         }
       }
     }
 
-    std::size_t num_enabled = 1; // plus one for main thread
-    for(auto & pair : expansion_map) {
-      if(pair.second->is_enabled())
-        ++num_enabled;
+
+    for(auto expansion : expansion_set) {
+      if(detail::is_verbose<3>(vm))
+        std::cout << "Configuring expansion: '"
+          << expansion->system_description() << "'\n";
+
+      expansion->configure_options(vm);
     }
+
+    for(auto expansion : expansion_set) {
+      if(detail::is_verbose<3>(vm))
+        std::cout << "Setting up com for expansion: '"
+          << expansion->system_description() << "'\n";
+
+      expansion->setup_com();
+    }
+
+    for(auto expansion : expansion_set) {
+      if(detail::is_verbose<3>(vm))
+        std::cout << "Initializing expansion: '"
+          << expansion->system_description() << "'\n";
+
+      expansion->initialize();
+    }
+
+
 
     // set up a barrier so that all threads start at once
     std::vector<std::thread> thread_vec;
-    barrier _barrier(num_enabled);
+    barrier _barrier(expansion_set.size()+1); // add one for main thread
 
-    for(auto & pair : expansion_map) {
-      if(pair.second->is_enabled()) {
-        thread_vec.push_back(
-          std::thread(run_expansion_board,pair.second,&_barrier));
-      }
+    for(auto expansion : expansion_set) {
+      thread_vec.push_back(
+        std::thread(run_expansion_board,expansion,&_barrier));
     }
 
     _barrier.wait();
@@ -710,9 +636,13 @@ int main(int argc, char *argv[])
     for(auto & thread : thread_vec)
       thread.join();
 
-    for(auto & pair : expansion_map)
-      pair.second->finalize();
+    for(auto expansion : expansion_set) {
+      if(detail::is_verbose<3>(vm))
+        std::cout << "Finalizing expansion: '"
+          << expansion->system_description() << "'\n";
 
+      expansion->finalize();
+    }
   }
   catch(const std::exception &e) {
     std::cerr << e.what() << "\n";

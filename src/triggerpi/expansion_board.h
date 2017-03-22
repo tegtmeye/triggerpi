@@ -124,6 +124,17 @@ operator^(trigger_type __x, trigger_type __y)
     (static_cast<unsigned int>(__x) ^ static_cast<unsigned int>(__y));
 }
 
+inline std::ostream & operator<<(std::ostream &os, const trigger_type &val)
+{
+  if(val == trigger_type::none)
+    return (os << "none");
+
+  if(val == trigger_type::single_shot)
+    return (os << "single shot");
+
+  return (os << "intermittent");
+}
+
 
 class expansion_board {
   public:
@@ -304,6 +315,15 @@ class expansion_board {
     void configure_trigger_sink(
       const std::shared_ptr<expansion_board> &sink);
 
+    // This expansion is receiving trigger notifications from somewhere
+    bool is_trigger_sink(void) const {
+      return _trigger_sink.get();
+    }
+
+    // This expansion is providing trigger notifications to others
+    bool is_trigger_source(void) const {
+      return _trigger_source.get();
+    }
 
   private:
 
@@ -313,6 +333,7 @@ class expansion_board {
       std::atomic<bool> _flag;
 
       std::atomic<bool> _final;
+      const expansion_board * _owner;
     };
 
     static factory_map_type & _factory_map(void);
@@ -369,7 +390,7 @@ inline void expansion_board::configure_trigger_sink(
 {
   // lazy instantiate
   if(!_trigger_source)
-    _trigger_source.reset(new _trigger());
+    _trigger_source = std::make_shared<_trigger>();
 
   sink->_trigger_sink = _trigger_source;
 }
@@ -406,10 +427,10 @@ inline bool expansion_board::is_triggered(void) const
 
 inline void expansion_board::trigger_start(void)
 {
-  assert(!(_trigger_source && _trigger_source->_final));
-
-  if(!_trigger_source)
+  if(!is_trigger_source())
     return;
+
+  assert(!(_trigger_source && _trigger_source->_final));
 
   std::unique_lock<std::mutex> lk(_trigger_source->m);
   _trigger_source->_flag = true;
@@ -419,10 +440,10 @@ inline void expansion_board::trigger_start(void)
 
 inline void expansion_board::trigger_stop(void)
 {
-  assert(!(_trigger_source && _trigger_source->_final));
-
-  if(!_trigger_source)
+  if(!is_trigger_source())
     return;
+
+  assert(!(_trigger_source && _trigger_source->_final));
 
   std::unique_lock<std::mutex> lk(_trigger_source->m);
   _trigger_source->_flag = false;
@@ -432,7 +453,7 @@ inline void expansion_board::trigger_stop(void)
 
 inline void expansion_board::trigger_shutdown(void)
 {
-  if(!_trigger_source)
+  if(!is_trigger_source())
     return;
 
   std::unique_lock<std::mutex> lk(_trigger_source->m);

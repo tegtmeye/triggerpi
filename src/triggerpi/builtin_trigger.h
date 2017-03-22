@@ -50,36 +50,39 @@
   than the given duration. In a resource constrained system, the total
   interval may be more but it will never be less.
 */
+template<typename TimeBaseT = std::chrono::nanoseconds>
 class builtin_trigger :public expansion_board {
   public:
+    typedef TimeBaseT time_base;
+
     // trigger constantly between \c start and \c stop
     template<typename Clock1, typename Clock2>
     builtin_trigger(typename std::chrono::time_point<Clock1> start,
       typename std::chrono::time_point<Clock2> stop);
 
     template<typename Clock>
-    builtin_trigger(std::chrono::nanoseconds start,
+    builtin_trigger(time_base start,
       typename std::chrono::time_point<Clock> stop);
 
     template<typename Clock>
     builtin_trigger(typename std::chrono::time_point<Clock> start,
-      std::chrono::nanoseconds stop);
+      time_base stop);
 
-    builtin_trigger(std::chrono::nanoseconds start,
-      std::chrono::nanoseconds stop);
+    builtin_trigger(time_base start,
+      time_base stop);
 
     // trigger constantly starting at \c start and continuing indefinitely
     template<typename Clock>
     builtin_trigger(typename std::chrono::time_point<Clock> start, bool);
 
-    builtin_trigger(std::chrono::nanoseconds start, bool);
+    builtin_trigger(time_base start, bool);
 
 
     // trigger constantly starting immediately and stopping at \c stop
     template<typename Clock>
     builtin_trigger(bool, typename std::chrono::time_point<Clock> stop);
 
-    builtin_trigger(bool, std::chrono::nanoseconds stop);
+    builtin_trigger(bool, time_base stop);
 
     /*
       cycle on for \c on_dur and off for \c off_dur starting at
@@ -89,22 +92,22 @@ class builtin_trigger :public expansion_board {
     */
     template<typename Clock1, typename Clock2>
     builtin_trigger(typename std::chrono::time_point<Clock1> start,
-      std::chrono::nanoseconds on_dur, std::chrono::nanoseconds off_dur,
+      time_base on_dur, time_base off_dur,
       typename std::chrono::time_point<Clock2> stop);
 
     template<typename Clock>
-    builtin_trigger(std::chrono::nanoseconds start,
-      std::chrono::nanoseconds on_dur, std::chrono::nanoseconds off_dur,
+    builtin_trigger(time_base start,
+      time_base on_dur, time_base off_dur,
       typename std::chrono::time_point<Clock> stop);
 
     template<typename Clock>
     builtin_trigger(typename std::chrono::time_point<Clock> start,
-      std::chrono::nanoseconds on_dur, std::chrono::nanoseconds off_dur,
-      std::chrono::nanoseconds stop);
+      time_base on_dur, time_base off_dur,
+      time_base stop);
 
-    builtin_trigger(std::chrono::nanoseconds start,
-      std::chrono::nanoseconds on_dur, std::chrono::nanoseconds off_dur,
-      std::chrono::nanoseconds stop);
+    builtin_trigger(time_base start,
+      time_base on_dur, time_base off_dur,
+      time_base stop);
 
     /*
       cycle on for \c on_dur and off for \c off_dur starting at
@@ -112,10 +115,10 @@ class builtin_trigger :public expansion_board {
     */
     template<typename Clock>
     builtin_trigger(typename std::chrono::time_point<Clock> start,
-      std::chrono::nanoseconds on_dur, std::chrono::nanoseconds off_dur);
+      time_base on_dur, time_base off_dur);
 
-    builtin_trigger(std::chrono::nanoseconds start,
-      std::chrono::nanoseconds on_dur, std::chrono::nanoseconds off_dur, bool);
+    builtin_trigger(time_base start,
+      time_base on_dur, time_base off_dur, bool);
 
     /*
       cycle on for \c on_dur and off for \c off_dur starting immediately
@@ -124,12 +127,12 @@ class builtin_trigger :public expansion_board {
       cannot be full length, it will not be triggered
     */
     template<typename Clock>
-    builtin_trigger(std::chrono::nanoseconds on_dur,
-      std::chrono::nanoseconds off_dur,
+    builtin_trigger(time_base on_dur,
+      time_base off_dur,
       typename std::chrono::time_point<Clock> stop);
 
-    builtin_trigger(bool, std::chrono::nanoseconds on_dur,
-      std::chrono::nanoseconds off_dur, std::chrono::nanoseconds stop);
+    builtin_trigger(bool, time_base on_dur,
+      time_base off_dur, time_base stop);
 
     virtual void run(void) {
       _run();
@@ -148,14 +151,16 @@ class builtin_trigger :public expansion_board {
     std::string _ascii_str;
 
     // convert to reduced string. ie lots of ns -> h,m,s,...
-    static std::string to_string(std::chrono::nanoseconds dur);
+    static std::string to_string(time_base dur);
 };
 
+template<typename TimeBaseT>
 template<typename Clock1, typename Clock2>
-builtin_trigger::builtin_trigger(
+builtin_trigger<TimeBaseT>::builtin_trigger(
   typename std::chrono::time_point<Clock1> start,
   typename std::chrono::time_point<Clock2> stop)
-    :expansion_board(trigger_type::intermittent,trigger_type::none)
+    :expansion_board(trigger_type::intermittent,
+      trigger_type::none)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(start);
@@ -174,10 +179,12 @@ builtin_trigger::builtin_trigger(
   _ascii_str = out.str();
 }
 
+template<typename TimeBaseT>
 template<typename Clock>
-builtin_trigger::builtin_trigger(
-  std::chrono::nanoseconds start, typename std::chrono::time_point<Clock> stop)
-    :expansion_board(trigger_type::intermittent,trigger_type::none)
+builtin_trigger<TimeBaseT>::builtin_trigger(
+  time_base start, typename std::chrono::time_point<Clock> stop)
+    :expansion_board(trigger_type::intermittent,
+      trigger_type::none)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(std::chrono::steady_clock::now()+start);
@@ -196,10 +203,12 @@ builtin_trigger::builtin_trigger(
   _ascii_str = out.str();
 }
 
+template<typename TimeBaseT>
 template<typename Clock>
-builtin_trigger::builtin_trigger(
-  typename std::chrono::time_point<Clock> start, std::chrono::nanoseconds stop)
-    :expansion_board(trigger_type::intermittent,trigger_type::none)
+builtin_trigger<TimeBaseT>::builtin_trigger(
+  typename std::chrono::time_point<Clock> start, time_base stop)
+    :expansion_board(trigger_type::intermittent,
+      trigger_type::none)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(start);
@@ -219,9 +228,11 @@ builtin_trigger::builtin_trigger(
   _ascii_str = out.str();
 }
 
-builtin_trigger::builtin_trigger(std::chrono::nanoseconds start,
-  std::chrono::nanoseconds stop)
-    :expansion_board(trigger_type::intermittent,trigger_type::none)
+template<typename TimeBaseT>
+builtin_trigger<TimeBaseT>::builtin_trigger(time_base start,
+  time_base stop)
+    :expansion_board(trigger_type::intermittent,
+      trigger_type::none)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(std::chrono::steady_clock::now()+start);
@@ -240,10 +251,12 @@ builtin_trigger::builtin_trigger(std::chrono::nanoseconds start,
 }
 
 
+template<typename TimeBaseT>
 template<typename Clock>
-builtin_trigger::builtin_trigger(
+builtin_trigger<TimeBaseT>::builtin_trigger(
   typename std::chrono::time_point<Clock> start, bool)
-    :expansion_board(trigger_type::intermittent,trigger_type::none)
+    :expansion_board(trigger_type::intermittent,
+      trigger_type::none)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(start);
@@ -259,9 +272,11 @@ builtin_trigger::builtin_trigger(
   _ascii_str = out.str();
 }
 
-builtin_trigger::builtin_trigger(
-  std::chrono::nanoseconds start, bool)
-    :expansion_board(trigger_type::intermittent,trigger_type::none)
+template<typename TimeBaseT>
+builtin_trigger<TimeBaseT>::builtin_trigger(
+  time_base start, bool)
+    :expansion_board(trigger_type::intermittent,
+      trigger_type::none)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(std::chrono::steady_clock::now()+start);
@@ -279,10 +294,12 @@ builtin_trigger::builtin_trigger(
 
 
 
+template<typename TimeBaseT>
 template<typename Clock>
-builtin_trigger::builtin_trigger(bool,
+builtin_trigger<TimeBaseT>::builtin_trigger(bool,
   typename std::chrono::time_point<Clock> stop)
-    :expansion_board(trigger_type::intermittent,trigger_type::none)
+    :expansion_board(trigger_type::intermittent,
+      trigger_type::none)
 {
   _run = [=](void) {
     trigger_start();
@@ -298,9 +315,11 @@ builtin_trigger::builtin_trigger(bool,
   _ascii_str = out.str();
 }
 
-builtin_trigger::builtin_trigger(
-  bool, std::chrono::nanoseconds stop)
-    :expansion_board(trigger_type::intermittent,trigger_type::none)
+template<typename TimeBaseT>
+builtin_trigger<TimeBaseT>::builtin_trigger(
+  bool, time_base stop)
+    :expansion_board(trigger_type::intermittent,
+      trigger_type::none)
 {
   _run = [=](void) {
     trigger_start();
@@ -316,12 +335,14 @@ builtin_trigger::builtin_trigger(
   _ascii_str = out.str();
 }
 
+template<typename TimeBaseT>
 template<typename Clock1, typename Clock2>
-builtin_trigger::builtin_trigger(
+builtin_trigger<TimeBaseT>::builtin_trigger(
   typename std::chrono::time_point<Clock1> start,
-  std::chrono::nanoseconds on_dur, std::chrono::nanoseconds off_dur,
+  time_base on_dur, time_base off_dur,
   typename std::chrono::time_point<Clock2> stop)
-    :expansion_board(trigger_type::intermittent,trigger_type::none)
+    :expansion_board(trigger_type::intermittent,
+      trigger_type::none)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(start);
@@ -347,11 +368,13 @@ builtin_trigger::builtin_trigger(
 }
 
 
+template<typename TimeBaseT>
 template<typename Clock>
-builtin_trigger::builtin_trigger(std::chrono::nanoseconds start,
-  std::chrono::nanoseconds on_dur, std::chrono::nanoseconds off_dur,
+builtin_trigger<TimeBaseT>::builtin_trigger(time_base start,
+  time_base on_dur, time_base off_dur,
   typename std::chrono::time_point<Clock> stop)
-    :expansion_board(trigger_type::intermittent,trigger_type::none)
+    :expansion_board(trigger_type::intermittent,
+      trigger_type::none)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(std::chrono::steady_clock::now()+start);
@@ -376,12 +399,14 @@ builtin_trigger::builtin_trigger(std::chrono::nanoseconds start,
   _ascii_str = out.str();
 }
 
+template<typename TimeBaseT>
 template<typename Clock>
-builtin_trigger::builtin_trigger(
+builtin_trigger<TimeBaseT>::builtin_trigger(
   typename std::chrono::time_point<Clock> start,
-  std::chrono::nanoseconds on_dur, std::chrono::nanoseconds off_dur,
-  std::chrono::nanoseconds stop)
-    :expansion_board(trigger_type::intermittent,trigger_type::none)
+  time_base on_dur, time_base off_dur,
+  time_base stop)
+    :expansion_board(trigger_type::intermittent,
+      trigger_type::none)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(start);
@@ -409,10 +434,12 @@ builtin_trigger::builtin_trigger(
   _ascii_str = out.str();
 }
 
-builtin_trigger::builtin_trigger(std::chrono::nanoseconds start,
-  std::chrono::nanoseconds on_dur, std::chrono::nanoseconds off_dur,
-  std::chrono::nanoseconds stop)
-    :expansion_board(trigger_type::intermittent,trigger_type::none)
+template<typename TimeBaseT>
+builtin_trigger<TimeBaseT>::builtin_trigger(time_base start,
+  time_base on_dur, time_base off_dur,
+  time_base stop)
+    :expansion_board(trigger_type::intermittent,
+      trigger_type::none)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(std::chrono::steady_clock::now()+start);
@@ -441,11 +468,13 @@ builtin_trigger::builtin_trigger(std::chrono::nanoseconds start,
 }
 
 
+template<typename TimeBaseT>
 template<typename Clock>
-builtin_trigger::builtin_trigger(
+builtin_trigger<TimeBaseT>::builtin_trigger(
   typename std::chrono::time_point<Clock> start,
-  std::chrono::nanoseconds on_dur, std::chrono::nanoseconds off_dur)
-    :expansion_board(trigger_type::intermittent,trigger_type::none)
+  time_base on_dur, time_base off_dur)
+    :expansion_board(trigger_type::intermittent,
+      trigger_type::none)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(start);
@@ -469,9 +498,11 @@ builtin_trigger::builtin_trigger(
   _ascii_str = out.str();
 }
 
-builtin_trigger::builtin_trigger(std::chrono::nanoseconds start,
-  std::chrono::nanoseconds on_dur, std::chrono::nanoseconds off_dur, bool)
-    :expansion_board(trigger_type::intermittent,trigger_type::none)
+template<typename TimeBaseT>
+builtin_trigger<TimeBaseT>::builtin_trigger(time_base start,
+  time_base on_dur, time_base off_dur, bool)
+    :expansion_board(trigger_type::intermittent,
+      trigger_type::none)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(std::chrono::steady_clock::now()+start);
@@ -495,11 +526,13 @@ builtin_trigger::builtin_trigger(std::chrono::nanoseconds start,
   _ascii_str = out.str();
 }
 
+template<typename TimeBaseT>
 template<typename Clock>
-builtin_trigger::builtin_trigger(
-  std::chrono::nanoseconds on_dur, std::chrono::nanoseconds off_dur,
+builtin_trigger<TimeBaseT>::builtin_trigger(
+  time_base on_dur, time_base off_dur,
   typename std::chrono::time_point<Clock> stop)
-    :expansion_board(trigger_type::intermittent,trigger_type::none)
+    :expansion_board(trigger_type::intermittent,
+      trigger_type::none)
 {
   _run = [=](void) {
     while(Clock::now()+on_dur+off_dur < stop) {
@@ -521,10 +554,12 @@ builtin_trigger::builtin_trigger(
   _ascii_str = out.str();
 }
 
-builtin_trigger::builtin_trigger(bool,
-  std::chrono::nanoseconds on_dur, std::chrono::nanoseconds off_dur,
-  std::chrono::nanoseconds stop)
-    :expansion_board(trigger_type::intermittent,trigger_type::none)
+template<typename TimeBaseT>
+builtin_trigger<TimeBaseT>::builtin_trigger(bool,
+  time_base on_dur, time_base off_dur,
+  time_base stop)
+    :expansion_board(trigger_type::intermittent,
+      trigger_type::none)
 {
   _run = [=](void) {
     std::chrono::steady_clock::time_point later =
@@ -549,7 +584,8 @@ builtin_trigger::builtin_trigger(bool,
   _ascii_str = out.str();
 }
 
-std::string builtin_trigger::to_string(std::chrono::nanoseconds dur)
+template<typename TimeBaseT>
+std::string builtin_trigger<TimeBaseT>::to_string(time_base dur)
 {
   std::chrono::hours::rep hours =
     std::chrono::duration_cast<std::chrono::hours>(dur).count();
@@ -696,6 +732,8 @@ std::shared_ptr<expansion_board>
 make_builtin_trigger(const std::basic_string<CharT> &raw_str)
 {
   typedef std::basic_string<CharT> string_type;
+  typedef std::chrono::nanoseconds time_base;
+  typedef builtin_trigger<time_base> builtin_trigger_type;
 
   using std::chrono::system_clock;
   using std::chrono::steady_clock;
@@ -760,11 +798,11 @@ make_builtin_trigger(const std::basic_string<CharT> &raw_str)
 
 
   std::pair<system_clock::time_point,bool> start_timespec{{},false};
-  std::pair<std::chrono::nanoseconds,bool> start_durspec{{},false};
-  std::pair<std::chrono::nanoseconds,bool> on_durspec{{},false};
-  std::pair<std::chrono::nanoseconds,bool> off_durspec{{},false};
+  std::pair<time_base,bool> start_durspec{{},false};
+  std::pair<time_base,bool> on_durspec{{},false};
+  std::pair<time_base,bool> off_durspec{{},false};
   std::pair<system_clock::time_point,bool> stop_timespec{{},false};
-  std::pair<std::chrono::nanoseconds,bool> stop_durspec{{},false};
+  std::pair<time_base,bool> stop_durspec{{},false};
 
 
   if(!start_raw.empty()) {
@@ -784,9 +822,7 @@ make_builtin_trigger(const std::basic_string<CharT> &raw_str)
 
   if(!on_raw.empty()) {
     on_durspec = parse_durspec(on_raw);
-    if(!on_durspec.second ||
-      on_durspec.first == std::chrono::nanoseconds::zero())
-    {
+    if(!on_durspec.second || on_durspec.first == time_base::zero()) {
       std::stringstream err;
       err << "Invalid builtin trigger interval on value in '"
         << on_raw << "'";
@@ -796,9 +832,7 @@ make_builtin_trigger(const std::basic_string<CharT> &raw_str)
 
   if(!off_raw.empty()) {
     off_durspec = parse_durspec(off_raw);
-    if(!off_durspec.second ||
-      off_durspec.first == std::chrono::nanoseconds::zero())
-    {
+    if(!off_durspec.second || off_durspec.first == time_base::zero()) {
       std::stringstream err;
       err << "Invalid builtin trigger interval off value in '"
         << off_raw << "'";
@@ -887,79 +921,79 @@ make_builtin_trigger(const std::basic_string<CharT> &raw_str)
   }
   else if(time_start && time_stop) {
     if(on_durspec.second) {
-      return std::shared_ptr<expansion_board>(new builtin_trigger(
+      return std::shared_ptr<expansion_board>(new builtin_trigger_type(
         start_timespec.first,on_durspec.first,off_durspec.first,
         stop_timespec.first));
     }
 
-    return std::shared_ptr<expansion_board>(new builtin_trigger(
+    return std::shared_ptr<expansion_board>(new builtin_trigger_type(
       start_timespec.first,stop_timespec.first));
   }
   else if(time_start && dur_stop) {
     if(on_durspec.second) {
-      return std::shared_ptr<expansion_board>(new builtin_trigger(
+      return std::shared_ptr<expansion_board>(new builtin_trigger_type(
         start_timespec.first,on_durspec.first,off_durspec.first,
         stop_durspec.first));
     }
 
-    return std::shared_ptr<expansion_board>(new builtin_trigger(
+    return std::shared_ptr<expansion_board>(new builtin_trigger_type(
       start_timespec.first,stop_durspec.first));
   }
   else if(time_start && no_stop) {
     if(on_durspec.second) {
-      return std::shared_ptr<expansion_board>(new builtin_trigger(
+      return std::shared_ptr<expansion_board>(new builtin_trigger_type(
         start_timespec.first,on_durspec.first,off_durspec.first));
     }
 
-    return std::shared_ptr<expansion_board>(new builtin_trigger(
+    return std::shared_ptr<expansion_board>(new builtin_trigger_type(
       start_timespec.first,0));
   }
   else if(dur_start && time_stop) {
     if(on_durspec.second) {
-      return std::shared_ptr<expansion_board>(new builtin_trigger(
+      return std::shared_ptr<expansion_board>(new builtin_trigger_type(
         start_durspec.first,on_durspec.first,off_durspec.first,
         stop_timespec.first));
     }
 
-    return std::shared_ptr<expansion_board>(new builtin_trigger(
+    return std::shared_ptr<expansion_board>(new builtin_trigger_type(
       start_durspec.first,stop_timespec.first));
   }
   else if(dur_start && dur_stop) {
     if(on_durspec.second) {
-      return std::shared_ptr<expansion_board>(new builtin_trigger(
+      return std::shared_ptr<expansion_board>(new builtin_trigger_type(
         start_durspec.first,on_durspec.first,off_durspec.first,
         stop_durspec.first));
     }
 
-    return std::shared_ptr<expansion_board>(new builtin_trigger(
+    return std::shared_ptr<expansion_board>(new builtin_trigger_type(
       start_durspec.first,stop_durspec.first));
   }
   else if(dur_start && no_stop) {
     if(on_durspec.second) {
-      return std::shared_ptr<expansion_board>(new builtin_trigger(
+      return std::shared_ptr<expansion_board>(new builtin_trigger_type(
         start_durspec.first,on_durspec.first,off_durspec.first,0));
     }
 
-    return std::shared_ptr<expansion_board>(new builtin_trigger(
+    return std::shared_ptr<expansion_board>(new builtin_trigger_type(
       start_durspec.first,0));
   }
   else if(no_start && time_stop) {
     if(on_durspec.second) {
-      return std::shared_ptr<expansion_board>(new builtin_trigger(
+      return std::shared_ptr<expansion_board>(new builtin_trigger_type(
         on_durspec.first,off_durspec.first,stop_timespec.first));
     }
 
-    return std::shared_ptr<expansion_board>(new builtin_trigger(
+    return std::shared_ptr<expansion_board>(new builtin_trigger_type(
       0,stop_timespec.first));
   }
 
   // else if(no_start && dur_stop)...
   if(on_durspec.second) {
-    return std::shared_ptr<expansion_board>(new builtin_trigger(
+    return std::shared_ptr<expansion_board>(new builtin_trigger_type(
       0,on_durspec.first,off_durspec.first,stop_durspec.first));
   }
 
-  return std::shared_ptr<expansion_board>(new builtin_trigger(
+  return std::shared_ptr<expansion_board>(new builtin_trigger_type(
     0,stop_durspec.first));
 }
 
