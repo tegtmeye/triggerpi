@@ -9,6 +9,8 @@
 
 #include "bits.h"
 
+#include "shared_block_buffer.h"
+
 #include <boost/program_options.hpp>
 #include <boost/rational.hpp>
 #include <boost/filesystem/path.hpp>
@@ -135,12 +137,55 @@ inline std::ostream & operator<<(std::ostream &os, const trigger_type &val)
   return (os << "intermittent");
 }
 
+enum class data_flow_type : unsigned int {
+  none = 0,
+  source = (1 << 0),
+  sink = (1 << 1),
+  transform = (source | sink)
+};
+
+inline constexpr data_flow_type
+operator&(data_flow_type __x, data_flow_type __y)
+{
+  return static_cast<data_flow_type>
+    (static_cast<unsigned int>(__x) & static_cast<unsigned int>(__y));
+}
+
+inline constexpr data_flow_type
+operator|(data_flow_type __x, data_flow_type __y)
+{
+  return static_cast<data_flow_type>
+    (static_cast<unsigned int>(__x) | static_cast<unsigned int>(__y));
+}
+
+inline constexpr data_flow_type
+operator^(data_flow_type __x, data_flow_type __y)
+{
+  return static_cast<data_flow_type>
+    (static_cast<unsigned int>(__x) ^ static_cast<unsigned int>(__y));
+}
+
+inline std::ostream & operator<<(std::ostream &os, const data_flow_type &val)
+{
+  if(val == data_flow_type::none)
+    return (os << "none");
+
+  if(val == data_flow_type::source)
+    return (os << "source");
+
+  if(val == data_flow_type::sink)
+    return (os << "sink");
+
+  return (os << "transform");
+}
+
+
 
 class expansion_board {
   public:
     /*
       If a board trigger configuration is: - none: This expansion is not
-      a trigger source or sink depending on where `c none is used
+      a trigger source or sink depending on where none is used
 
         - trigger_type::single_shot: the source is enabled and then
         optionally disabled at some later point in time. Once disabled,
@@ -221,8 +266,17 @@ class expansion_board {
 
     // Board identifiers
 
-    // return the system unique description in human readable form
-    // ie (make and model)
+    /*
+      Return a short identifier representing this expansion. If possible,
+      this string should be sufficient to unambiguously identify the
+      expansion on the command line
+    */
+    virtual std::string system_identifier(void) const = 0;
+
+    /*
+      Return a description of the expansion in human readable form. This is
+      string is used only when a long descriptive form is needed.
+    */
     virtual std::string system_description(void) const = 0;
 
 
@@ -295,6 +349,16 @@ class expansion_board {
     trigger_type trigger_source_type(void) const;
     trigger_type trigger_sink_type(void) const;
 
+    // This expansion is receiving trigger notifications from somewhere
+    bool is_trigger_sink(void) const {
+      return _trigger_sink.get();
+    }
+
+    // This expansion is providing trigger notifications to others
+    bool is_trigger_source(void) const {
+      return _trigger_source.get();
+    }
+
 
     /*
       Enabling/disabling of this expansion
@@ -315,17 +379,10 @@ class expansion_board {
     void configure_trigger_sink(
       const std::shared_ptr<expansion_board> &sink);
 
-    // This expansion is receiving trigger notifications from somewhere
-    bool is_trigger_sink(void) const {
-      return _trigger_sink.get();
-    }
-
-    // This expansion is providing trigger notifications to others
-    bool is_trigger_source(void) const {
-      return _trigger_source.get();
-    }
-
   private:
+    struct _data_pool {
+
+    };
 
     struct _trigger {
       std::mutex m;

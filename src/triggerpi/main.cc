@@ -166,13 +166,11 @@ int main(int argc, char *argv[])
     std::stringstream usage;
       usage <<
         PACKAGE_STRING "\n\n"
-        "Utility for triggering things based on ADC input for the "
-        "Raspberry Pi.\n"
+        "Utility for controlling builtin and system expansions for "
+        "embedded computers.\n"
         "Report bugs to: " PACKAGE_BUGREPORT "\n\n"
-        "Usage: " << PACKAGE " [OPTIONS] [CONFIG_FILE]\n";
-
-    std::string brief_header = "Try `" PACKAGE " --help' for more "
-      "information";
+        "Usage: " << PACKAGE " [OPTIONS] [CONFIG_FILE]\n\n"
+        "Try `" PACKAGE " --help' for more information.\n";
 
     // general options
     po::options_description general("General options");
@@ -207,7 +205,7 @@ int main(int argc, char *argv[])
     // build the help string for the list of registered expansion systems
     std::stringstream system_help;
     system_help << "Enable expansion system ARG. Specify as many as "
-      "necessary\n";
+      "necessary.\n";
 
     for (auto & cur : registered_expansion)
       system_help << "  '" << cur.second->system_config_name() << "' - "
@@ -240,27 +238,39 @@ int main(int argc, char *argv[])
         "means that the per-sample delay is recorded.\n")
       ("system,s",po::value<std::vector<std::string> >(),
         system_help_str.c_str())
-      ("tsource",po::value<std::vector<std::string> >(),
-        "  Set the trigger source with [id] to be [arg]. The trigger id is a "
-        "positive and not necessarily sequential integer separated by the "
-        "source with the '#' character. For example, if the "
-        "'foo' system is set to be a trigger source for trigger id '5', [arg] "
-        "would be: 'foo#5'. If the id is missing, then the trigger is assumed "
-        "to have id '0'. The system must be the name of a system previously "
-        "set under --system or one of the following built-in sources:\n"
-        "   start[intervel]stop - the sink will be triggered at the "
-        "optionally given start with the optionally provided interval "
-        "continuing until the optionally provided stop. The 'start' and "
-        "'stop' specifications is either a time specification or a "
-        "duration specification indicating the wall time to start or the "
-        "duration to wait. If 'start' is not provided, the trigger will "
-        "fire immediately. If 'stop' is not provided, the trigger will "
-        "fire indefinetly. The 'interval' specification is of the form "
-        "'[on_dur:off_dur]' where 'on_dur' and 'off_dur' are both "
-        "duration specifications indicating the length of time the "
-        "trigger will be fired followed by the length of time the "
-        "trigger will be off. This pattern will repeat until stop if "
-        "provided. The time specification is a date and time parsed with "
+      ("trigger",po::value<std::vector<std::string> >(),
+        "  Set a trigger production of the form: "
+        "sourcespec[[|source_sinkspec]...|sinkspec][#label]\n\n"
+        "  Any meaningful production will either need to escape the '|' "
+        "character or enclose the production in quotes.\n\n"
+        "  A trigger production is a directed graph of expansions or "
+        "built-in triggers such that if a trigger source A and a sink B are "
+        "linked together and A notifies B (A -> B), then A -> B form a "
+        "trigger production. If an expansion is capable of receiving trigger "
+        "notifications then it is a trigger_sink. If it is capable of "
+        "providing trigger notifications, then it is a trigger_source. Not "
+        "all expansions are capable of being sources or sinks and any sink "
+        "must have only one source whereas a source can have many sinks. "
+        "If a label is provided, then it is considered a named production. "
+        "A named production can be referred to in other productions as needed "
+        "provided that the the source/sink requirements are met and the "
+        "named production appears before its use. For example\n"
+        "    --trigger=\"B|C@foo\" --trigger=\"A|foo|D\"\n"
+        "  is equivalent to:\n"
+        "    --trigger=\"A|B|C|D\"\n\n"
+        "  A triggerspec is either a named production, a known system "
+        "specified by the --system command, or a built-in trigger spec. "
+        "Built in triggers can be specified directly in the trigger "
+        "production if desired although specifying separately and assigning "
+        "a label to them allows reuse. "
+        "Currently available built-in triggers are:\n\n"
+        "  timed_trigger: A trigger source that fires the trigger at "
+        "startspec, alternates according to intervalspec, and stops at "
+        "stopspec. The syntax has the following form:\n"
+        "    [startspec][[intervalspec]][stopspec] where startspec and "
+        "stopspec have the form timespec|durationspec and intervalspec "
+        "has the form durationspec:durationspec. The time specification "
+        "is a date and time parsed with "
         "the POSIX function strptime as '%Y-%m-%d %H:%M:%S'. That is, a "
         "date and time string of the form 'YYYY-MM-DD hh:mm:ss' where "
         "YYYY indicates the 4-digit year, MM indicates the 2-digit month "
@@ -273,7 +283,10 @@ int main(int argc, char *argv[])
         "integer and h,m,s,ms,us,ns indicates the number of hours, "
         "minutes, seconds, milliseconds, microseconds, and nanoseconds. "
         "Each grouping is optional. For example: 5m1s means 5 minutes and "
-        "one second.\nA word about start/stop time and duration. Time is "
+        "one second. If startspec is missing, the trigger will fire "
+        "immediately. If stopspec is missing, the trigger will fire "
+        "indefinitely. Each duration of intervalspec must be nonzero."
+        "A word about start/stop time and duration. Time is "
         "a funny thing. Absolute time is considered system time and "
         "duration is considered elapsed time. For example, if the "
         "time between execution start and the trigger start/stop timespec "
@@ -297,35 +310,26 @@ int main(int argc, char *argv[])
         "duration spec. In this case, you are requesting the trigger "
         "interval to be no less than the given duration. In a resource "
         "constrained system, the total interval may be more but it will "
-        "never be less.\n"
-        "     Examples:\n\n"
-        "     -tsource=\"2017-02-28 12:15:06#2\"\n"
+        "never be less.\n\n"
+        "   Examples:\n"
+        "     --trigger=\"2017-02-28 12:15:06#2\"\n"
         "     Create a builtin trigger at slot 2 and start at noon plus "
         "15 minutes and 6 seconds on February 28 of 2017 and continue "
         "indefinitely\n\n"
-        "     -tsource=\"2m[]2020-02-28 12:15:06\"\n"
+        "     --trigger=\"2m[]2020-02-28 12:15:06\"\n"
         "     Start 2 minutes from now and stop at noon plus 15 minutes "
         "and 6 seconds on February 28 of 2020 and continue indefinitely\n\n"
-        "     -tsource=\"2m[100ms:100ms]\"\n"
+        "     --trigger=\"2m[100ms:100ms]\"\n"
         "     Start 2 minutes from now, turn on for 100 ms and then off for "
         "100 ms repeating indefinitely\n\n"
-        "     -tsource=\"[100ms:100ms]2m\"\n"
+        "     --trigger=\"[100ms:100ms]2m\"\n"
         "     Start immediately, then repeatedly turn on for 100 ms and "
         "then off for 100 ms until 2 minutes have elapsed\n\n"
-        "N.B. A trigger sink must be configured for the "
-        "source to be do anything. See --tsink.\n")
-      ("tsink",po::value<std::vector<std::string> >(),
-        "  Set the trigger sink with [id] to be [arg]. The trigger id is a "
-        "positive and not necessarily sequential integer separated by the "
-        "source with the '#' character. For example, the "
-        "'foo' system is set to be a trigger source for trigger id '5', [arg] "
-        "would be: 'foo#5'. If the id is missing, then the trigger is assumed "
-        "to have id '0'. The system must be the name of a system previously "
-        "set under --system. A trigger source must be configured for the "
-        "system to be notified. See --tsource.\n")
-      ("trigger",po::value<std::vector<std::string> >(),
-        "  Set a trigger chain of the form: "
-        "sourcespec[|source_sinkspec]...|sinkspec[#label]\n")
+        "     --trigger=\"2s@start\" --trigger=\"start|foo\" "
+        "--trigger=\"start|bar\"\n"
+        "     Make a built-in trigger at 2 seconds, assign 'start' as an "
+        "alias to it, and use it to trigger both 'foo' and 'bar'\n\n"
+      )
       ;
 
 

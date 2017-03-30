@@ -138,17 +138,22 @@ class builtin_trigger :public expansion_board {
       _run();
     }
 
+    virtual std::string system_identifier(void) const {
+      return _system_identifier;
+    }
 
     virtual std::string system_description(void) const {
-      return _ascii_str;
+      return _system_description;
     }
 
   private:
-    static constexpr const char * system_prefix = "builtin trigger";
+    static constexpr const char * system_prefix
+      = "builtin time/interval trigger";
 
     std::function<void(void)> _run;
 
-    std::string _ascii_str;
+    std::string _system_identifier;
+    std::string _system_description;
 
     // convert to reduced string. ie lots of ns -> h,m,s,...
     static std::string to_string(time_base dur);
@@ -176,7 +181,7 @@ builtin_trigger<TimeBaseT>::builtin_trigger(
   out << system_prefix << " "
     << start.time_since_epoch().count() << "[]"
     << stop.time_since_epoch().count();
-  _ascii_str = out.str();
+  _system_description = out.str();
 }
 
 template<typename TimeBaseT>
@@ -200,7 +205,7 @@ builtin_trigger<TimeBaseT>::builtin_trigger(
   out << system_prefix << " "
     << to_string(start) << "[]"
     << stop.time_since_epoch().count();
-  _ascii_str = out.str();
+  _system_description = out.str();
 }
 
 template<typename TimeBaseT>
@@ -222,10 +227,10 @@ builtin_trigger<TimeBaseT>::builtin_trigger(
   };
 
   std::stringstream out;
-  out << system_prefix << " "
+  out
     << start.time_since_epoch().count() << "[]"
     << to_string(stop);
-  _ascii_str = out.str();
+  _system_identifier = out.str();
 }
 
 template<typename TimeBaseT>
@@ -245,9 +250,9 @@ builtin_trigger<TimeBaseT>::builtin_trigger(time_base start,
   };
 
   std::stringstream out;
-  out << system_prefix << " "
+  out
     << to_string(start) << "[]" << to_string(stop);
-  _ascii_str = out.str();
+  _system_identifier = out.str();
 }
 
 
@@ -267,9 +272,9 @@ builtin_trigger<TimeBaseT>::builtin_trigger(
   };
 
   std::stringstream out;
-  out << system_prefix << " "
+  out
     << start.time_since_epoch().count() << "[]";
-  _ascii_str = out.str();
+  _system_identifier = out.str();
 }
 
 template<typename TimeBaseT>
@@ -287,9 +292,9 @@ builtin_trigger<TimeBaseT>::builtin_trigger(
   };
 
   std::stringstream out;
-  out << system_prefix << " "
+  out
     << to_string(start) << "[]";
-  _ascii_str = out.str();
+  _system_identifier = out.str();
 }
 
 
@@ -310,9 +315,9 @@ builtin_trigger<TimeBaseT>::builtin_trigger(bool,
   };
 
   std::stringstream out;
-  out << system_prefix << " "
+  out
     << "[]" << stop.time_since_epoch().count();
-  _ascii_str = out.str();
+  _system_identifier = out.str();
 }
 
 template<typename TimeBaseT>
@@ -330,9 +335,9 @@ builtin_trigger<TimeBaseT>::builtin_trigger(
   };
 
   std::stringstream out;
-  out << system_prefix << " "
+  out
     << "[]" << to_string(stop);
-  _ascii_str = out.str();
+  _system_identifier = out.str();
 }
 
 template<typename TimeBaseT>
@@ -358,13 +363,13 @@ builtin_trigger<TimeBaseT>::builtin_trigger(
   };
 
   std::stringstream out;
-  out << system_prefix << " "
+  out
     << start.time_since_epoch().count()
     << "["
     << to_string(on_dur) << ":" << to_string(off_dur)
     << "]"
     << stop.time_since_epoch().count();
-  _ascii_str = out.str();
+  _system_identifier = out.str();
 }
 
 
@@ -390,13 +395,13 @@ builtin_trigger<TimeBaseT>::builtin_trigger(time_base start,
   };
 
   std::stringstream out;
-  out << system_prefix << " "
+  out
     << to_string(start)
     << "["
     << to_string(on_dur) << ":" << to_string(off_dur)
     << "]"
     << stop.time_since_epoch().count();
-  _ascii_str = out.str();
+  _system_identifier = out.str();
 }
 
 template<typename TimeBaseT>
@@ -425,13 +430,13 @@ builtin_trigger<TimeBaseT>::builtin_trigger(
   };
 
   std::stringstream out;
-  out << system_prefix << " "
+  out
     << start.time_since_epoch().count()
     << "["
     << to_string(on_dur) << ":" << to_string(off_dur)
     << "]"
     << to_string(stop);
-  _ascii_str = out.str();
+  _system_identifier = out.str();
 }
 
 template<typename TimeBaseT>
@@ -458,13 +463,13 @@ builtin_trigger<TimeBaseT>::builtin_trigger(time_base start,
   };
 
   std::stringstream out;
-  out << system_prefix << " "
+  out
     << to_string(start)
     << "["
     << to_string(on_dur) << ":" << to_string(off_dur)
     << "]"
     << to_string(stop);
-  _ascii_str = out.str();
+  _system_identifier = out.str();
 }
 
 
@@ -490,12 +495,12 @@ builtin_trigger<TimeBaseT>::builtin_trigger(
   };
 
   std::stringstream out;
-  out << system_prefix << " "
+  out
     << start.time_since_epoch().count()
     << "["
     << to_string(on_dur) << ":" << to_string(off_dur)
     << "]";
-  _ascii_str = out.str();
+  _system_identifier = out.str();
 }
 
 template<typename TimeBaseT>
@@ -518,12 +523,12 @@ builtin_trigger<TimeBaseT>::builtin_trigger(time_base start,
   };
 
   std::stringstream out;
-  out << system_prefix << " "
+  out
     << to_string(start)
     << "["
     << to_string(on_dur) << ":" << to_string(off_dur)
     << "]";
-  _ascii_str = out.str();
+  _system_identifier = out.str();
 }
 
 template<typename TimeBaseT>
@@ -546,12 +551,12 @@ builtin_trigger<TimeBaseT>::builtin_trigger(
   };
 
   std::stringstream out;
-  out << system_prefix << " "
+  out
     << "["
     << to_string(on_dur) << ":" << to_string(off_dur)
     << "]"
     << stop.time_since_epoch().count();
-  _ascii_str = out.str();
+  _system_identifier = out.str();
 }
 
 template<typename TimeBaseT>
@@ -576,12 +581,12 @@ builtin_trigger<TimeBaseT>::builtin_trigger(bool,
   };
 
   std::stringstream out;
-  out << system_prefix << " "
+  out
     << "["
     << to_string(on_dur) << ":" << to_string(off_dur)
     << "]"
     << to_string(stop);
-  _ascii_str = out.str();
+  _system_identifier = out.str();
 }
 
 template<typename TimeBaseT>

@@ -39,8 +39,6 @@ typedef std::pair<std::shared_ptr<expansion_board>,
         trigger_source as the nth trigger production head trigger_sink
 
 
-    Labels that start with '__' are reserved
-
     Productions can be anonymous which means that they cannot be referred to
     later
 

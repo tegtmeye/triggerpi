@@ -38,7 +38,6 @@ triggerpi_SOURCES= \
 	waveshare_ADS1256.cc \
 	waveshare_ADS1256_config.cc \
 	trigger_chain.h \
-	trigger_chain.cc \
         main.cc
 
 

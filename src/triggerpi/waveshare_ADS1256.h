@@ -98,6 +98,8 @@ class waveshare_ADS1256 :public ADC_board {
 
     virtual void finalize(void);
 
+    virtual std::string system_identifier(void) const;
+
     virtual std::string system_description(void) const;
 
     // ADC_board overrides
@@ -193,6 +195,10 @@ inline std::string waveshare_ADS1256::system_config_desc_long(void)
 }
 
 
+inline std::string waveshare_ADS1256::system_identifier(void) const
+{
+  return system_config_name();
+}
 
 inline std::string waveshare_ADS1256::system_description(void) const
 {
