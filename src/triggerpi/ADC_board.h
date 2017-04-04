@@ -38,7 +38,7 @@ class ADC_board : public expansion_board {
     virtual ~ADC_board(void) {}
 
     // current sampling rate in rows per second.
-    virtual rational_type row_sampling_rate(void) const = 0;
+    //virtual rational_type row_sampling_rate(void) const = 0;
 
     // number of bits for each sample
     virtual std::uint32_t bit_depth(void) const = 0;
@@ -57,7 +57,7 @@ class ADC_board : public expansion_board {
     // FSR/(2^bit_depth*gain) for unsigned ADC counts and
     // FSR/(2^bit_depth-1*gain) for signed ADC counts. Since we are using
     // the rational form, the unit is always in volts.
-    virtual rational_type sensitivity(void) const = 0;
+//    virtual rational_type sensitivity(void) const = 0;
 
     // number of active channels that have been configured
     virtual std::uint32_t enabled_channels(void) const = 0;

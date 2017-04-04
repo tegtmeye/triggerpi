@@ -112,15 +112,14 @@ make_trigger_chain(const std::basic_string<CharT> &trigger_spec,
       throw std::runtime_error(err.str());
     }
 
-    if((cur_source->trigger_source_type() & cur_sink->trigger_sink_type()) ==
-      trigger_type::none)
+    if(!compatable_trigger(cur_source->trigger_type(),cur_sink->trigger_type()))
     {
       std::stringstream err;
       err << "trigger reference '" << triggerref_str
         << "' with trigger sink type '"
-        << cur_sink->trigger_sink_type() << "' is incompatible with the "
+        << sink(cur_sink->trigger_type()) << "' is incompatible with the "
           "given source expansion '" << cur_source->system_description()
-        << "' with trigger source type '" << cur_source->trigger_source_type()
+        << "' with trigger source type '" << source(cur_source->trigger_type())
         << "'";
       throw std::runtime_error(err.str());
     }

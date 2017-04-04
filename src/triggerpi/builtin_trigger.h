@@ -143,17 +143,16 @@ class builtin_trigger :public expansion_board {
     }
 
     virtual std::string system_description(void) const {
-      return _system_description;
+      return std::string(system_prefix)+" "+_system_identifier;
     }
 
   private:
     static constexpr const char * system_prefix
-      = "builtin time/interval trigger";
+      = "time/interval trigger";
 
     std::function<void(void)> _run;
 
     std::string _system_identifier;
-    std::string _system_description;
 
     // convert to reduced string. ie lots of ns -> h,m,s,...
     static std::string to_string(time_base dur);
@@ -164,8 +163,7 @@ template<typename Clock1, typename Clock2>
 builtin_trigger<TimeBaseT>::builtin_trigger(
   typename std::chrono::time_point<Clock1> start,
   typename std::chrono::time_point<Clock2> stop)
-    :expansion_board(trigger_type::intermittent,
-      trigger_type::none)
+    :expansion_board(trigger_type_t::intermittent_source)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(start);
@@ -178,18 +176,17 @@ builtin_trigger<TimeBaseT>::builtin_trigger(
   };
 
   std::stringstream out;
-  out << system_prefix << " "
+  out
     << start.time_since_epoch().count() << "[]"
     << stop.time_since_epoch().count();
-  _system_description = out.str();
+  _system_identifier = out.str();
 }
 
 template<typename TimeBaseT>
 template<typename Clock>
 builtin_trigger<TimeBaseT>::builtin_trigger(
   time_base start, typename std::chrono::time_point<Clock> stop)
-    :expansion_board(trigger_type::intermittent,
-      trigger_type::none)
+    :expansion_board(trigger_type_t::intermittent_source)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(std::chrono::steady_clock::now()+start);
@@ -202,18 +199,17 @@ builtin_trigger<TimeBaseT>::builtin_trigger(
   };
 
   std::stringstream out;
-  out << system_prefix << " "
+  out
     << to_string(start) << "[]"
     << stop.time_since_epoch().count();
-  _system_description = out.str();
+  _system_identifier = out.str();
 }
 
 template<typename TimeBaseT>
 template<typename Clock>
 builtin_trigger<TimeBaseT>::builtin_trigger(
   typename std::chrono::time_point<Clock> start, time_base stop)
-    :expansion_board(trigger_type::intermittent,
-      trigger_type::none)
+    :expansion_board(trigger_type_t::intermittent_source)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(start);
@@ -236,8 +232,7 @@ builtin_trigger<TimeBaseT>::builtin_trigger(
 template<typename TimeBaseT>
 builtin_trigger<TimeBaseT>::builtin_trigger(time_base start,
   time_base stop)
-    :expansion_board(trigger_type::intermittent,
-      trigger_type::none)
+    :expansion_board(trigger_type_t::intermittent_source)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(std::chrono::steady_clock::now()+start);
@@ -260,8 +255,7 @@ template<typename TimeBaseT>
 template<typename Clock>
 builtin_trigger<TimeBaseT>::builtin_trigger(
   typename std::chrono::time_point<Clock> start, bool)
-    :expansion_board(trigger_type::intermittent,
-      trigger_type::none)
+    :expansion_board(trigger_type_t::intermittent_source)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(start);
@@ -280,8 +274,7 @@ builtin_trigger<TimeBaseT>::builtin_trigger(
 template<typename TimeBaseT>
 builtin_trigger<TimeBaseT>::builtin_trigger(
   time_base start, bool)
-    :expansion_board(trigger_type::intermittent,
-      trigger_type::none)
+    :expansion_board(trigger_type_t::intermittent_source)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(std::chrono::steady_clock::now()+start);
@@ -303,8 +296,7 @@ template<typename TimeBaseT>
 template<typename Clock>
 builtin_trigger<TimeBaseT>::builtin_trigger(bool,
   typename std::chrono::time_point<Clock> stop)
-    :expansion_board(trigger_type::intermittent,
-      trigger_type::none)
+    :expansion_board(trigger_type_t::intermittent_source)
 {
   _run = [=](void) {
     trigger_start();
@@ -323,8 +315,7 @@ builtin_trigger<TimeBaseT>::builtin_trigger(bool,
 template<typename TimeBaseT>
 builtin_trigger<TimeBaseT>::builtin_trigger(
   bool, time_base stop)
-    :expansion_board(trigger_type::intermittent,
-      trigger_type::none)
+    :expansion_board(trigger_type_t::intermittent_source)
 {
   _run = [=](void) {
     trigger_start();
@@ -346,8 +337,7 @@ builtin_trigger<TimeBaseT>::builtin_trigger(
   typename std::chrono::time_point<Clock1> start,
   time_base on_dur, time_base off_dur,
   typename std::chrono::time_point<Clock2> stop)
-    :expansion_board(trigger_type::intermittent,
-      trigger_type::none)
+    :expansion_board(trigger_type_t::intermittent_source)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(start);
@@ -378,8 +368,7 @@ template<typename Clock>
 builtin_trigger<TimeBaseT>::builtin_trigger(time_base start,
   time_base on_dur, time_base off_dur,
   typename std::chrono::time_point<Clock> stop)
-    :expansion_board(trigger_type::intermittent,
-      trigger_type::none)
+    :expansion_board(trigger_type_t::intermittent_source)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(std::chrono::steady_clock::now()+start);
@@ -408,10 +397,8 @@ template<typename TimeBaseT>
 template<typename Clock>
 builtin_trigger<TimeBaseT>::builtin_trigger(
   typename std::chrono::time_point<Clock> start,
-  time_base on_dur, time_base off_dur,
-  time_base stop)
-    :expansion_board(trigger_type::intermittent,
-      trigger_type::none)
+  time_base on_dur, time_base off_dur, time_base stop)
+    :expansion_board(trigger_type_t::intermittent_source)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(start);
@@ -441,10 +428,8 @@ builtin_trigger<TimeBaseT>::builtin_trigger(
 
 template<typename TimeBaseT>
 builtin_trigger<TimeBaseT>::builtin_trigger(time_base start,
-  time_base on_dur, time_base off_dur,
-  time_base stop)
-    :expansion_board(trigger_type::intermittent,
-      trigger_type::none)
+  time_base on_dur, time_base off_dur, time_base stop)
+    :expansion_board(trigger_type_t::intermittent_source)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(std::chrono::steady_clock::now()+start);
@@ -478,8 +463,7 @@ template<typename Clock>
 builtin_trigger<TimeBaseT>::builtin_trigger(
   typename std::chrono::time_point<Clock> start,
   time_base on_dur, time_base off_dur)
-    :expansion_board(trigger_type::intermittent,
-      trigger_type::none)
+    :expansion_board(trigger_type_t::intermittent_source)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(start);
@@ -506,8 +490,7 @@ builtin_trigger<TimeBaseT>::builtin_trigger(
 template<typename TimeBaseT>
 builtin_trigger<TimeBaseT>::builtin_trigger(time_base start,
   time_base on_dur, time_base off_dur, bool)
-    :expansion_board(trigger_type::intermittent,
-      trigger_type::none)
+    :expansion_board(trigger_type_t::intermittent_source)
 {
   _run = [=](void) {
     std::this_thread::sleep_until(std::chrono::steady_clock::now()+start);
@@ -536,8 +519,7 @@ template<typename Clock>
 builtin_trigger<TimeBaseT>::builtin_trigger(
   time_base on_dur, time_base off_dur,
   typename std::chrono::time_point<Clock> stop)
-    :expansion_board(trigger_type::intermittent,
-      trigger_type::none)
+    :expansion_board(trigger_type_t::intermittent_source)
 {
   _run = [=](void) {
     while(Clock::now()+on_dur+off_dur < stop) {
@@ -563,8 +545,7 @@ template<typename TimeBaseT>
 builtin_trigger<TimeBaseT>::builtin_trigger(bool,
   time_base on_dur, time_base off_dur,
   time_base stop)
-    :expansion_board(trigger_type::intermittent,
-      trigger_type::none)
+    :expansion_board(trigger_type_t::intermittent_source)
 {
   _run = [=](void) {
     std::chrono::steady_clock::time_point later =

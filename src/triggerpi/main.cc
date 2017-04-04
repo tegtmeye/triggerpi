@@ -56,23 +56,6 @@ fs::path user_pref_dir(void)
   return pref_dir;
 }
 
-std::string to_string(trigger_type type)
-{
-  std::string result;
-
-  if(type == trigger_type::none)
-    result = "no_trigger";
-  else {
-    if((type & trigger_type::single_shot) != trigger_type::none)
-      result += "single_shot_trigger ";
-
-    if((type & trigger_type::intermittent) != trigger_type::none)
-      result += "intermittent_trigger ";
-  }
-
-  return result;
-}
-
 std::pair<std::size_t,std::string>
 parse_triggerspec(const std::string &raw_str)
 {
@@ -216,6 +199,7 @@ int main(int argc, char *argv[])
     // Global Configuration options
     po::options_description global_config("Global Config Options");
     global_config.add_options()
+#if 0
       ("outfile,o", po::value<std::string>(),
         "  Output the configured channels into [file] according to format "
         "given by --format. If 'output' is not specified, output the "
@@ -236,6 +220,7 @@ int main(int argc, char *argv[])
       ("stats",po::value<bool>()->default_value(true),
         "  Collect statistics on system performance. For the ADC, this "
         "means that the per-sample delay is recorded.\n")
+#endif
       ("system,s",po::value<std::vector<std::string> >(),
         system_help_str.c_str())
       ("trigger",po::value<std::vector<std::string> >(),
@@ -586,12 +571,12 @@ int main(int argc, char *argv[])
           for(auto &trig_prod : new_prod) {
             if(trig_prod.first == trig_prod.second) {
               std::cout << "  '"
-                << trig_prod.first->system_description() << "'\n";
+                << trig_prod.first->system_identifier() << "'\n";
             }
             else {
               std::cout << "  '"
-                << trig_prod.first->system_description() << "' ... '"
-                << trig_prod.second->system_description() << "'\n";
+                << trig_prod.first->system_identifier() << "' ... '"
+                << trig_prod.second->system_identifier() << "'\n";
             }
           }
         }
@@ -602,7 +587,7 @@ int main(int argc, char *argv[])
     for(auto expansion : expansion_set) {
       if(detail::is_verbose<3>(vm))
         std::cout << "Configuring expansion: '"
-          << expansion->system_description() << "'\n";
+          << expansion->system_identifier() << "'\n";
 
       expansion->configure_options(vm);
     }
@@ -610,7 +595,7 @@ int main(int argc, char *argv[])
     for(auto expansion : expansion_set) {
       if(detail::is_verbose<3>(vm))
         std::cout << "Setting up com for expansion: '"
-          << expansion->system_description() << "'\n";
+          << expansion->system_identifier() << "'\n";
 
       expansion->setup_com();
     }
@@ -618,7 +603,7 @@ int main(int argc, char *argv[])
     for(auto expansion : expansion_set) {
       if(detail::is_verbose<3>(vm))
         std::cout << "Initializing expansion: '"
-          << expansion->system_description() << "'\n";
+          << expansion->system_identifier() << "'\n";
 
       expansion->initialize();
     }
@@ -643,7 +628,7 @@ int main(int argc, char *argv[])
     for(auto expansion : expansion_set) {
       if(detail::is_verbose<3>(vm))
         std::cout << "Finalizing expansion: '"
-          << expansion->system_description() << "'\n";
+          << expansion->system_identifier() << "'\n";
 
       expansion->finalize();
     }

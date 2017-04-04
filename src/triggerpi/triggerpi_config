@@ -10,15 +10,15 @@
 #outfile=FILENAME # uncomment to send output to [FILENAME]
 
 # Output format. Currently only csv is supported
-format=csv
+#format=csv
 
 # Trigger and sample for [DURATION] seconds. Duration is in floating point
 # format. ie 2.5 for two and a half seconds. Specify a negative value to
 # run indefinitely [default]
-duration=-1
+#duration=-1
 
 # Hint to use multiple threads [default]
-async=true
+#async=true
 
 ## System configuration options
 

@@ -35,6 +35,7 @@ static T ipow10(T exp)
     return result;
 }
 
+#if 0
 static std::tuple<unsigned char,expansion_board::rational_type>
 validate_translate_sample_rate(const po::variables_map &vm)
 {
@@ -123,6 +124,7 @@ validate_translate_sample_rate(const po::variables_map &vm)
 
   return std::make_tuple(code_result,row_rate_result);
 }
+
 
 static std::tuple<unsigned char,std::uint32_t>
 validate_translate_gain(const po::variables_map &vm)
@@ -259,7 +261,7 @@ validate_translate_Vref(const std::string Vref_str)
 
   return result;
 }
-
+#endif
 
 
 
@@ -373,7 +375,7 @@ po::options_description waveshare_ADS1256::cmd_options(void)
 
 
 waveshare_ADS1256::waveshare_ADS1256(void)
-  :ADC_board(trigger_type::none,trigger_type::single_shot), row_block(1),
+  :ADC_board(trigger_type_t::intermittent_sink), row_block(1),
     used_pins(9,0)
 {
 }
@@ -472,7 +474,7 @@ void waveshare_ADS1256::validate_assign_channel(const std::string config_str,
 void waveshare_ADS1256::configure_options(const po::variables_map &_vm)
 {
   assert(did_register_config);
-
+#if 0
   std::tie(_sample_rate_code,_row_sampling_rate) =
     validate_translate_sample_rate(_vm);
   std::tie(_gain_code,_gain) = validate_translate_gain(_vm);
@@ -514,6 +516,7 @@ void waveshare_ADS1256::configure_options(const po::variables_map &_vm)
   if(!row_block)
     throw std::runtime_error("waveshare_ADC.sampleblocks must be a positive "
       "integer");
+#endif
 }
 
 }

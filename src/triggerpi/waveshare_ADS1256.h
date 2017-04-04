@@ -104,7 +104,7 @@ class waveshare_ADS1256 :public ADC_board {
 
     // ADC_board overrides
 
-    virtual rational_type row_sampling_rate(void) const;
+    //virtual rational_type row_sampling_rate(void) const;
 
     virtual std::uint32_t bit_depth(void) const;
 
@@ -112,7 +112,7 @@ class waveshare_ADS1256 :public ADC_board {
 
     virtual bool ADC_counts_big_endian(void) const;
 
-    virtual rational_type sensitivity(void) const;
+//    virtual rational_type sensitivity(void) const;
 
     virtual std::uint32_t enabled_channels(void) const;
 
@@ -205,11 +205,13 @@ inline std::string waveshare_ADS1256::system_description(void) const
   return system_config_desc_short();
 }
 
+#if 0
 inline expansion_board::rational_type
 waveshare_ADS1256::row_sampling_rate(void) const
 {
   return _row_sampling_rate;
 }
+#endif
 
 inline std::uint32_t waveshare_ADS1256::bit_depth(void) const
 {
@@ -226,12 +228,14 @@ inline bool waveshare_ADS1256::ADC_counts_big_endian(void) const
   return true;
 }
 
+#if 0
 inline expansion_board::rational_type
 waveshare_ADS1256::sensitivity(void) const
 {
   // sensitivity = 1/(2^23-1) * FSR/gain
   return (_Vref*2)*rational_type(1,8388607 * _gain);
 }
+#endif
 
 inline std::uint32_t waveshare_ADS1256::enabled_channels(void) const
 {

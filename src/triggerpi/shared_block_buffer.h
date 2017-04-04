@@ -46,6 +46,10 @@ class shared_block_buffer {
     shared_block_buffer(const shared_block_buffer &rhs) = delete;
     shared_block_buffer & operator=(shared_block_buffer &rhs) = delete;
 
+    std::size_t buffer_size(void) const;
+
+    std::size_t buffer_alignment(void) const;
+
     std::size_t capacity(void) const;
 
     // if empty return value then no room in queue
@@ -226,6 +230,16 @@ inline shared_block_buffer::shared_block_buffer(std::size_t buff_size,
     head->_count = 0;
     _queue.push_back(i);
   }
+}
+
+inline std::size_t shared_block_buffer::buffer_size(void) const
+{
+  return _buff_size;
+}
+
+inline std::size_t shared_block_buffer::buffer_alignment(void) const
+{
+  return _buff_align;
 }
 
 inline std::size_t shared_block_buffer::capacity(void) const
