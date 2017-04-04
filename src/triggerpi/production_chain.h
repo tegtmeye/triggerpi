@@ -8,8 +8,24 @@
 #include <string>
 #include <functional>
 
-typedef std::pair<std::shared_ptr<expansion_board>,
-  std::shared_ptr<expansion_board> > production_chain;
+// typedef std::pair<std::shared_ptr<expansion_board>,
+//   std::shared_ptr<expansion_board> > production_chain;
+
+struct production_chain {
+  std::string label;
+  std::shared_ptr<expansion_board> head;
+  std::shared_ptr<expansion_board> tail;
+
+  production_chain(void) = default;
+  ~production_chain(void) = default;
+  production_chain(const std::string &str,
+    const std::shared_ptr<expansion_board> _head,
+    const std::shared_ptr<expansion_board> _tail)
+      :label(str), head(_head), tail(_tail) {}
+  production_chain(const production_chain &) = default;
+  production_chain(production_chain &&) = default;
+  production_chain & operator=(const production_chain &) = default;
+};
 
 /*
   Build the given production and return a vector of UNLINKED
@@ -74,19 +90,17 @@ make_production_chain(const std::basic_string<CharT> &prod_spec,
   if(map_iter == production_map.end()) {
     std::shared_ptr<expansion_board> builtin =
       make_builtin(expansionref_str);
-    result.emplace_back(std::make_pair(builtin,builtin));
+    result.emplace_back(production_chain(expansionref_str,builtin,builtin));
   }
-  else {
-    // make sure it doen't reference an anonymous production
+  else
     result.emplace_back(map_iter->second);
-  }
 
   if(loc_iter == prod_spec.end())
     return result;
 
   prev = ++loc_iter; // eat the '|'
   while(prev != prod_spec.end()) {
-    std::shared_ptr<expansion_board> cur_source = result.back().second;
+    std::shared_ptr<expansion_board> cur_source = result.back().tail;
 
     auto loc_iter = std::find(prev,prod_spec.end(),'|');
 
@@ -95,7 +109,7 @@ make_production_chain(const std::basic_string<CharT> &prod_spec,
     if(map_iter == production_map.end()) {
       std::shared_ptr<expansion_board> builtin =
         make_builtin(expansionref_str);
-      result.emplace_back(std::make_pair(builtin,builtin));
+      result.emplace_back(production_chain(expansionref_str,builtin,builtin));
     }
     else {
       // make sure it doen't reference an anonymous production

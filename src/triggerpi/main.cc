@@ -517,8 +517,10 @@ int main(int argc, char *argv[])
           << expansion->system_description() << "'\n";
 
       // each system is added as a production of size 1
-      trigger_production_map[system] = production_chain(expansion,expansion);
-      dataflow_production_map[system] = production_chain(expansion,expansion);
+      trigger_production_map[system] =
+        production_chain(system,expansion,expansion);
+      dataflow_production_map[system] =
+        production_chain(system,expansion,expansion);
 
       expansion_set.emplace(expansion);
     }
@@ -547,13 +549,13 @@ int main(int argc, char *argv[])
           new_prod is considered to be well formed but unlinked
           and may contain new builtin expansions. Ensure new expansions
           are contained in expansion_set. Simply calling emplace works
-          because: if the prod refers to a new expansion, prod.first ==
-          prod.second. No new expansions will be embedded in between
-          prod.first and prod.second. Emplace will only add the
+          because: if the prod refers to a new expansion, prod.head ==
+          prod.tail. No new expansions will be embedded in between
+          prod.head and prod.tail. Emplace will only add the
           expansion if it doesn't already exist
         */
         for(auto trig_prod : new_prod) {
-          const auto &result_pair = expansion_set.emplace(trig_prod.first);
+          const auto &result_pair = expansion_set.emplace(trig_prod.head);
 
           if(result_pair.second && detail::is_verbose<2>(vm)) {
             std::cout << "Registered builtin trigger '"
@@ -563,12 +565,12 @@ int main(int argc, char *argv[])
 
         // now link the production together
         for(std::size_t i=1; i<new_prod.size(); ++i)
-          new_prod[i-1].second->configure_trigger_sink(new_prod[i].first);
+          new_prod[i-1].tail->configure_trigger_sink(new_prod[i].head);
 
         // add the production to the named production map if so labeled
         if(!label.empty()) {
           trigger_production_map[label] =
-            production_chain(new_prod.front().first,new_prod.front().second);
+            production_chain(label,new_prod.front().head,new_prod.front().tail);
         }
 
         if(detail::is_verbose<3>(vm)) {
@@ -577,17 +579,8 @@ int main(int argc, char *argv[])
           else
             std::cout << "Assigned label '" << label << "' to production:\n";
 
-          for(auto &trig_prod : new_prod) {
-            if(trig_prod.first == trig_prod.second) {
-              std::cout << "  '"
-                << trig_prod.first->system_identifier() << "'\n";
-            }
-            else {
-              std::cout << "  '"
-                << trig_prod.first->system_identifier() << "' ... '"
-                << trig_prod.second->system_identifier() << "'\n";
-            }
-          }
+          for(auto &trig_prod : new_prod)
+            std::cout << "  '" << trig_prod.label << "'\n";
         }
       }
     }
@@ -622,7 +615,7 @@ int main(int argc, char *argv[])
           expansion if it doesn't already exist
         */
         for(auto data_prod : new_prod) {
-          const auto &result_pair = expansion_set.emplace(data_prod.first);
+          const auto &result_pair = expansion_set.emplace(data_prod.head);
 
           if(result_pair.second && detail::is_verbose<2>(vm)) {
             std::cout << "Registered builtin dataflow object '"
@@ -632,12 +625,12 @@ int main(int argc, char *argv[])
 
         // now link the production together
         for(std::size_t i=1; i<new_prod.size(); ++i)
-          new_prod[i-1].second->configure_data_sink(new_prod[i].first);
+          new_prod[i-1].tail->configure_data_sink(new_prod[i].head);
 
         // add the production to the named production map if so labeled
         if(!label.empty()) {
           dataflow_production_map[label] =
-            production_chain(new_prod.front().first,new_prod.front().second);
+            production_chain(label,new_prod.front().head,new_prod.front().tail);
         }
 
         if(detail::is_verbose<3>(vm)) {
@@ -646,21 +639,11 @@ int main(int argc, char *argv[])
           else
             std::cout << "Assigned label '" << label << "' to production:\n";
 
-          for(auto &data_prod : new_prod) {
-            if(data_prod.first == data_prod.second) {
-              std::cout << "  '"
-                << data_prod.first->system_identifier() << "'\n";
-            }
-            else {
-              std::cout << "  '"
-                << data_prod.first->system_identifier() << "' ... '"
-                << data_prod.second->system_identifier() << "'\n";
-            }
-          }
+          for(auto &trig_prod : new_prod)
+            std::cout << "  '" << trig_prod.label << "'\n";
         }
       }
     }
-
 
 
 
