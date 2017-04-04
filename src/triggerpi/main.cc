@@ -3,7 +3,8 @@
 #include "bits.h"
 #include "expansion_board.h"
 #include "waveshare_ADS1256.h"
-#include "trigger_chain.h"
+#include "builtin_trigger.h"
+#include "production_chain.h"
 
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
@@ -30,8 +31,6 @@ namespace chrono = std::chrono;
 typedef std::map<std::string,
   std::shared_ptr<expansion_board> > expansion_map_type;
 
-typedef std::pair<std::shared_ptr<expansion_board>,
-  std::shared_ptr<expansion_board> > trigger_chain;
 
 
 
@@ -472,10 +471,16 @@ int main(int argc, char *argv[])
     // check for required configuration items
 
     /*
-      production map is a mapping of named trigger_productions. All
+      trigger production map is a mapping of named trigger_productions. All
       registered systems are also a named trigger production of size 1
     */
-    std::map<std::string,trigger_chain> production_map;
+    std::map<std::string,production_chain> trigger_production_map;
+
+    /*
+      dataflow production map is a mapping of named dataflow_productions. All
+      registered systems are also a named dataflow production of size 1
+    */
+    std::map<std::string,production_chain> dataflow_production_map;
 
     /*
       expansion set is a set of all registered expansions
@@ -497,11 +502,13 @@ int main(int argc, char *argv[])
         throw std::runtime_error(err.str());
       }
 
-      if(production_map.find(system) != production_map.end()) {
+      if(trigger_production_map.find(system) != trigger_production_map.end()) {
         std::stringstream err;
         err << "Duplicate system: '" << system << "'";
         throw std::runtime_error(err.str());
       }
+      assert(dataflow_production_map.find(system) ==
+        dataflow_production_map.end());
 
       expansion.reset(registered_expansion.at(system)->construct());
 
@@ -510,7 +517,8 @@ int main(int argc, char *argv[])
           << expansion->system_description() << "'\n";
 
       // each system is added as a production of size 1
-      production_map[system] = trigger_chain(expansion,expansion);
+      trigger_production_map[system] = production_chain(expansion,expansion);
+      dataflow_production_map[system] = production_chain(expansion,expansion);
 
       expansion_set.emplace(expansion);
     }
@@ -530,8 +538,9 @@ int main(int argc, char *argv[])
           label.assign(++loc,str.end());
         }
 
-        std::vector<trigger_production> new_prod =
-          make_trigger_chain(trigger_spec,production_map);
+        std::vector<production_chain> new_prod =
+          make_production_chain(trigger_spec,trigger_production_map,
+            &make_builtin_trigger);
         assert(!new_prod.empty());
 
         /*
@@ -558,13 +567,13 @@ int main(int argc, char *argv[])
 
         // add the production to the named production map if so labeled
         if(!label.empty()) {
-          production_map[label] =
-            trigger_chain(new_prod.front().first,new_prod.front().second);
+          trigger_production_map[label] =
+            production_chain(new_prod.front().first,new_prod.front().second);
         }
 
         if(detail::is_verbose<3>(vm)) {
           if(label.empty())
-            std::cout << "Created anonymous production:\n";
+            std::cout << "Created anonymous trigger production:\n";
           else
             std::cout << "Assigned label '" << label << "' to production:\n";
 
@@ -582,6 +591,89 @@ int main(int argc, char *argv[])
         }
       }
     }
+
+    if(vm.count("dataflow")) {
+      const std::vector<std::string> &dataflow_vec =
+        vm["dataflow"].as<std::vector<std::string> >();
+
+
+      for(auto & str : dataflow_vec) {
+        std::string::const_iterator loc = std::find(str.begin(),str.end(),'@');
+
+        std::string dataflow_spec(str.begin(),loc);
+
+        std::string label;
+        if(loc != str.end()) {
+          label.assign(++loc,str.end());
+        }
+
+        std::vector<production_chain> new_prod =
+          make_production_chain(dataflow_spec,dataflow_production_map,
+            &make_builtin_trigger);
+        assert(!new_prod.empty());
+
+        /*
+          new_prod is considered to be well formed but unlinked
+          and may contain new builtin expansions. Ensure new expansions
+          are contained in expansion_set. Simply calling emplace works
+          because: if the prod refers to a new expansion, prod.first ==
+          prod.second. No new expansions will be embedded in between
+          prod.first and prod.second. Emplace will only add the
+          expansion if it doesn't already exist
+        */
+        for(auto data_prod : new_prod) {
+          const auto &result_pair = expansion_set.emplace(data_prod.first);
+
+          if(result_pair.second && detail::is_verbose<2>(vm)) {
+            std::cout << "Registered builtin dataflow object '"
+              << (*result_pair.first)->system_description() << "'\n";
+          }
+        }
+
+        // now link the production together
+        for(std::size_t i=1; i<new_prod.size(); ++i)
+          new_prod[i-1].second->configure_data_sink(new_prod[i].first);
+
+        // add the production to the named production map if so labeled
+        if(!label.empty()) {
+          dataflow_production_map[label] =
+            production_chain(new_prod.front().first,new_prod.front().second);
+        }
+
+        if(detail::is_verbose<3>(vm)) {
+          if(label.empty())
+            std::cout << "Created anonymous dataflow production:\n";
+          else
+            std::cout << "Assigned label '" << label << "' to production:\n";
+
+          for(auto &data_prod : new_prod) {
+            if(data_prod.first == data_prod.second) {
+              std::cout << "  '"
+                << data_prod.first->system_identifier() << "'\n";
+            }
+            else {
+              std::cout << "  '"
+                << data_prod.first->system_identifier() << "' ... '"
+                << data_prod.second->system_identifier() << "'\n";
+            }
+          }
+        }
+      }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     for(auto expansion : expansion_set) {

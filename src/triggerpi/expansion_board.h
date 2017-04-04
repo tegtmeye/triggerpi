@@ -407,7 +407,6 @@ class expansion_board {
       Data source/sink configuration
 
     */
-    data_flow_t data_flow(void) const;
 
     /*
       Configure this object to use built-in data source functionality.
@@ -541,6 +540,28 @@ class expansion_board {
 
 
     /*
+      Dataflow source/sink configuration
+
+      By default all expansions can be configured as both sources and sinks.
+      To tailor in inherited classes, use constructor. That is,
+      source or sink-ness is not a configuration option, it is a class trait.
+    */
+    data_flow_t dataflow_type(void) const;
+
+
+    // This expansion is receiving blocks from somewhere
+    bool is_data_sink(void) const {
+      return _data_sink_queue.get();
+    }
+
+    // This expansion is providing data blocks to others
+    bool is_data_source(void) const {
+      return !_data_sinks.empty();
+    }
+
+
+
+    /*
       Enabling/disabling of this expansion
     */
     void enable(void) {_enabled = true;}
@@ -594,7 +615,7 @@ class expansion_board {
 
     bool _enabled;
     trigger_type_t _trigger_type;
-    data_flow_t _data_flow;
+    data_flow_t _dataflow_type;
 };
 
 
@@ -602,13 +623,13 @@ class expansion_board {
 
 inline expansion_board::expansion_board(trigger_type_t trigger_type,
   data_flow_t data_flow) :_enabled(false), _trigger_type(trigger_type),
-    _data_flow(data_flow)
+    _dataflow_type(data_flow)
 {
 }
 
 inline expansion_board::expansion_board(data_flow_t data_flow,
   trigger_type_t trigger_type) :_enabled(false), _trigger_type(trigger_type),
-    _data_flow(data_flow)
+    _dataflow_type(data_flow)
 {
 }
 
@@ -722,16 +743,16 @@ inline trigger_type_t expansion_board::trigger_type(void) const
 
 
 
-inline data_flow_t expansion_board::data_flow(void) const
+inline data_flow_t expansion_board::dataflow_type(void) const
 {
-  return _data_flow;
+  return _dataflow_type;
 }
 
 inline void expansion_board::configure_data_source_blocks(
   std::size_t buff_size, std::size_t align, std::size_t capacity,
   const std::map<std::string,std::string> &config)
 {
-  assert((_data_flow & data_flow_t::source) != data_flow_t::none);
+  assert((_dataflow_type & data_flow_t::source) != data_flow_t::none);
 
   _data_sink_config = config;
   _data_source_buff
@@ -741,7 +762,7 @@ inline void expansion_board::configure_data_source_blocks(
 inline void
 expansion_board::configure_data_sink_queue(std::size_t queue_size)
 {
-  assert((_data_flow & data_flow_t::sink) != data_flow_t::none);
+  assert((_dataflow_type & data_flow_t::sink) != data_flow_t::none);
 
   _data_sink_queue = std::make_shared<
     b::lockfree::spsc_queue<data_block_ptr> >(queue_size);
@@ -781,6 +802,25 @@ inline bool expansion_board::data_block_available(void) const
 inline void expansion_board::configure_trigger_sink(
   const std::shared_ptr<expansion_board> &sink)
 {
+  if(sink->_trigger_sink.get()) {
+    std::stringstream err;
+    err << "expansion '" << sink->system_description()
+      << "' is already configured as a trigger sink when trying to link to "
+        "trigger source '" << system_description() << "'";
+    throw std::runtime_error(err.str());
+  }
+
+  if(!compatable_trigger(this->_trigger_type,sink->_trigger_type)) {
+    std::stringstream err;
+    err << "expansion '" << sink->system_description()
+      << "' with sink type '"
+      << sink->_trigger_type << "' is incompatible with the "
+        "given source trigger for expansion '" << system_description()
+      << "' with source type '" << this->_trigger_type
+      << "'";
+    throw std::runtime_error(err.str());
+  }
+
   // lazy instantiate
   if(!_trigger_source)
     _trigger_source = std::make_shared<_trigger>();
@@ -790,6 +830,30 @@ inline void expansion_board::configure_trigger_sink(
 
 inline void expansion_board::configure_data_sink(const std::shared_ptr<expansion_board> &sink)
 {
+  if(sink->_data_sink_queue.get()) {
+    std::stringstream err;
+    err << "expansion '" << sink->system_description()
+      << "' is already configured as a dataflow sink when trying to link to "
+        "source '" << system_description() << "'";
+    throw std::runtime_error(err.str());
+  }
+
+  if(this->_dataflow_type != data_flow_t::source) {
+    std::stringstream err;
+    err << "expansion '" << this->system_description()
+      << "' is not a dataflow source when trying to link to '"
+      << sink->system_description() << "'";
+    throw std::runtime_error(err.str());
+  }
+
+  if(sink->_dataflow_type != data_flow_t::sink) {
+    std::stringstream err;
+    err << "expansion '" << sink->system_description()
+      << "' is not a dataflow sink when trying to link to '"
+      << this->system_description() << "'";
+    throw std::runtime_error(err.str());
+  }
+
   _data_sinks.push_back(sink.get());
 }
 
