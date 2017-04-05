@@ -66,12 +66,23 @@ struct production_chain {
 
     --dataflow=0@zeros --dataflow=zeros@zeros_alias
 */
+
+namespace detail {
+
+template<typename CharT>
+struct functional_helper {
+  typedef std::basic_string<CharT> string_type;
+  typedef std::function<std::shared_ptr<expansion_board>(const string_type &)>
+    function_type;
+};
+
+}
+
 template<typename CharT>
 std::vector<production_chain>
 make_production_chain(const std::basic_string<CharT> &prod_spec,
   const std::map<std::basic_string<CharT>,production_chain> &production_map,
-  std::shared_ptr<expansion_board>(*make_builtin)(
-    const std::basic_string<CharT> &))
+  typename detail::functional_helper<CharT>::function_type make_builtin)
 {
   typedef std::basic_string<CharT> string_type;
 
@@ -123,6 +134,15 @@ make_production_chain(const std::basic_string<CharT> &prod_spec,
   }
 
   return result;
+}
+
+template<typename CharT>
+inline std::vector<production_chain>
+make_production_chain(const std::basic_string<CharT> &prod_spec,
+  const std::map<std::basic_string<CharT>,production_chain> &production_map)
+{
+  return make_production_chain(prod_spec,production_map,
+    [](const std::string &){return std::shared_ptr<expansion_board>();});
 }
 
 #endif

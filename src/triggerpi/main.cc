@@ -4,6 +4,7 @@
 #include "expansion_board.h"
 #include "waveshare_ADS1256.h"
 #include "builtin_trigger.h"
+#include "builtin_const_datasource.h"
 #include "production_chain.h"
 
 #include <boost/program_options.hpp>
@@ -34,8 +35,81 @@ typedef std::map<std::string,
 
 
 
+struct capture_productions {
+  typedef std::vector<std::pair<std::string,std::string> > prod_pair_vec;
+
+  capture_productions(prod_pair_vec &vec) :keyval_vec(vec) {}
+
+  std::pair<std::string, std::string> operator()(const std::string &s)
+  {
+    auto loc = std::find(s.begin(),s.end(),'=');
+    std::string key(s.begin(),loc);
+    std::string value;
+
+    if(loc != s.end())
+      value.assign(++loc,s.end());
+
+    if(key == "--trigger" || key == "--dataflow")// || key == "--chain")
+      keyval_vec.get().push_back(std::make_pair(key,value));
+
+    return std::make_pair(std::string(), std::string());
+  }
+
+  std::reference_wrapper<prod_pair_vec> keyval_vec;
+};
 
 
+void check_source_sink(std::shared_ptr<expansion_board> expansion)
+{
+  unsigned int _trigger_source = source_type(expansion->trigger_type());
+  unsigned int _trigger_sink = sink_type(expansion->trigger_type());
+  unsigned int _data_source = source_type(expansion->dataflow_type());
+  unsigned int _data_sink = sink_type(expansion->dataflow_type());
+
+  /*
+    failure if no sink and single or multi source is specified but the
+    optional flag is not provided.
+
+    Same goes for the other conditions
+  */
+
+  // not a source but must be one
+  if(!expansion->is_trigger_source() &&
+      (_trigger_source == 2 || _trigger_source == 6))
+  {
+    std::stringstream err;
+    err << "expansion: '" << expansion->system_identifier()
+      << "' requires a trigger sink but none is provided.";
+    throw std::runtime_error(err.str());
+  }
+
+
+  // not a sink but must be one
+  if(!expansion->is_trigger_sink() &&
+      (_trigger_sink == 2 || _trigger_sink == 6))
+  {
+    std::stringstream err;
+    err << "expansion: '" << expansion->system_identifier()
+      << "' requires a trigger source but none is provided.";
+    throw std::runtime_error(err.str());
+  }
+
+  // not a data source but must be one
+  if(!expansion->is_data_source() && (_data_source == 2)) {
+    std::stringstream err;
+    err << "expansion: '" << expansion->system_identifier()
+      << "' requires a data sink but none is provided.";
+    throw std::runtime_error(err.str());
+  }
+
+  // not a data sink but must be one
+  if(!expansion->is_data_sink() && (_data_sink == 2)) {
+    std::stringstream err;
+    err << "expansion: '" << expansion->system_identifier()
+      << "' requires a data sink but none is provided.";
+    throw std::runtime_error(err.str());
+  }
+}
 
 
 // attempt to get user defaults directory in a platform agnostic way
@@ -312,8 +386,9 @@ int main(int argc, char *argv[])
         "     --trigger=\"2s@start\" --trigger=\"start|foo\" "
         "--trigger=\"start|bar\"\n"
         "     Make a built-in trigger at 2 seconds, assign 'start' as an "
-        "alias to it, and use it to trigger both 'foo' and 'bar'\n\n"
-      )
+        "alias to it, and use it to trigger both 'foo' and 'bar'\n\n")
+      ("dataflow",po::value<std::vector<std::string> >(),"")
+//       ("chain",po::value<std::vector<std::string> >(),"")
       ;
 
 
@@ -343,10 +418,14 @@ int main(int argc, char *argv[])
     pos_arg.add("config", 1);
 
 
+    capture_productions::prod_pair_vec production_keyvalue_vec;
+
     // read command line args
     po::variables_map vm;
     store(po::command_line_parser(argc,argv).
-          options(cmdline_options).positional(pos_arg).run(), vm);
+      options(cmdline_options).positional(pos_arg).
+        extra_parser(capture_productions(production_keyvalue_vec)).
+        run(), vm);
     notify(vm);
 
     if(vm.count("help")) {
@@ -471,16 +550,10 @@ int main(int argc, char *argv[])
     // check for required configuration items
 
     /*
-      trigger production map is a mapping of named trigger_productions. All
-      registered systems are also a named trigger production of size 1
+      production map is a mapping of named productions. All
+      registered systems are also a named production of size 1
     */
-    std::map<std::string,production_chain> trigger_production_map;
-
-    /*
-      dataflow production map is a mapping of named dataflow_productions. All
-      registered systems are also a named dataflow production of size 1
-    */
-    std::map<std::string,production_chain> dataflow_production_map;
+    std::map<std::string,production_chain> production_map;
 
     /*
       expansion set is a set of all registered expansions
@@ -502,13 +575,11 @@ int main(int argc, char *argv[])
         throw std::runtime_error(err.str());
       }
 
-      if(trigger_production_map.find(system) != trigger_production_map.end()) {
+      if(production_map.find(system) != production_map.end()) {
         std::stringstream err;
         err << "Duplicate system: '" << system << "'";
         throw std::runtime_error(err.str());
       }
-      assert(dataflow_production_map.find(system) ==
-        dataflow_production_map.end());
 
       expansion.reset(registered_expansion.at(system)->construct());
 
@@ -517,147 +588,85 @@ int main(int argc, char *argv[])
           << expansion->system_description() << "'\n";
 
       // each system is added as a production of size 1
-      trigger_production_map[system] =
-        production_chain(system,expansion,expansion);
-      dataflow_production_map[system] =
-        production_chain(system,expansion,expansion);
+      production_map[system] = production_chain(system,expansion,expansion);
 
       expansion_set.emplace(expansion);
     }
 
-    if(vm.count("trigger")) {
-      const std::vector<std::string> &trigger_vec =
-        vm["trigger"].as<std::vector<std::string> >();
+    // process the productions
+    for(auto keyval : production_keyvalue_vec) {
+      std::string prodkey = keyval.first;
+      std::string prodspec = keyval.second;
 
+      std::string::iterator loc =
+        std::find(prodspec.begin(),prodspec.end(),'@');
 
-      for(auto & str : trigger_vec) {
-        std::string::const_iterator loc = std::find(str.begin(),str.end(),'@');
+      std::string spec_str(prodspec.begin(),loc);
 
-        std::string trigger_spec(str.begin(),loc);
+      std::string label;
+      if(loc != prodspec.end())
+        label.assign(++loc,prodspec.end());
 
-        std::string label;
-        if(loc != str.end()) {
-          label.assign(++loc,str.end());
+      std::vector<production_chain> new_prod;
+
+      if(prodkey == "--trigger") {
+        new_prod = make_production_chain(spec_str,production_map,
+          make_builtin_trigger<char>);
+      }
+      else if(prodkey == "--dataflow") {
+        new_prod = make_production_chain(spec_str,production_map,
+          make_builtin_dataflow<char>);
+      }
+//       else if(prodkey == "--chain") {
+//         new_prod = make_production_chain(spec_str,production_map);
+//       }
+
+      assert(!new_prod.empty());
+
+      /*
+        new_prod is considered to be well formed but unlinked
+        and may contain new builtin expansions. Ensure new expansions
+        are contained in expansion_set. Simply calling emplace works
+        because: if the prod refers to a new expansion, prod.first ==
+        prod.second. No new expansions will be embedded in between
+        prod.first and prod.second. Emplace will only add the
+        expansion if it doesn't already exist
+      */
+      for(auto data_prod : new_prod) {
+        const auto &result_pair = expansion_set.emplace(data_prod.head);
+
+        if(result_pair.second && detail::is_verbose<2>(vm)) {
+          std::cout << "Registered builtin expansion '"
+            << (*result_pair.first)->system_description() << "'\n";
         }
+      }
 
-        std::vector<production_chain> new_prod =
-          make_production_chain(trigger_spec,trigger_production_map,
-            &make_builtin_trigger);
-        assert(!new_prod.empty());
-
-        /*
-          new_prod is considered to be well formed but unlinked
-          and may contain new builtin expansions. Ensure new expansions
-          are contained in expansion_set. Simply calling emplace works
-          because: if the prod refers to a new expansion, prod.head ==
-          prod.tail. No new expansions will be embedded in between
-          prod.head and prod.tail. Emplace will only add the
-          expansion if it doesn't already exist
-        */
-        for(auto trig_prod : new_prod) {
-          const auto &result_pair = expansion_set.emplace(trig_prod.head);
-
-          if(result_pair.second && detail::is_verbose<2>(vm)) {
-            std::cout << "Registered builtin trigger '"
-              << (*result_pair.first)->system_description() << "'\n";
-          }
-        }
-
-        // now link the production together
+      // now link the production together
+      if(prodkey == "--trigger") {
         for(std::size_t i=1; i<new_prod.size(); ++i)
           new_prod[i-1].tail->configure_trigger_sink(new_prod[i].head);
-
-        // add the production to the named production map if so labeled
-        if(!label.empty()) {
-          trigger_production_map[label] =
-            production_chain(label,new_prod.front().head,new_prod.front().tail);
-        }
-
-        if(detail::is_verbose<3>(vm)) {
-          if(label.empty())
-            std::cout << "Created anonymous trigger production:\n";
-          else
-            std::cout << "Assigned label '" << label << "' to production:\n";
-
-          for(auto &trig_prod : new_prod)
-            std::cout << "  '" << trig_prod.label << "'\n";
-        }
       }
-    }
-
-    if(vm.count("dataflow")) {
-      const std::vector<std::string> &dataflow_vec =
-        vm["dataflow"].as<std::vector<std::string> >();
-
-
-      for(auto & str : dataflow_vec) {
-        std::string::const_iterator loc = std::find(str.begin(),str.end(),'@');
-
-        std::string dataflow_spec(str.begin(),loc);
-
-        std::string label;
-        if(loc != str.end()) {
-          label.assign(++loc,str.end());
-        }
-
-        std::vector<production_chain> new_prod =
-          make_production_chain(dataflow_spec,dataflow_production_map,
-            &make_builtin_trigger);
-        assert(!new_prod.empty());
-
-        /*
-          new_prod is considered to be well formed but unlinked
-          and may contain new builtin expansions. Ensure new expansions
-          are contained in expansion_set. Simply calling emplace works
-          because: if the prod refers to a new expansion, prod.first ==
-          prod.second. No new expansions will be embedded in between
-          prod.first and prod.second. Emplace will only add the
-          expansion if it doesn't already exist
-        */
-        for(auto data_prod : new_prod) {
-          const auto &result_pair = expansion_set.emplace(data_prod.head);
-
-          if(result_pair.second && detail::is_verbose<2>(vm)) {
-            std::cout << "Registered builtin dataflow object '"
-              << (*result_pair.first)->system_description() << "'\n";
-          }
-        }
-
-        // now link the production together
+      else if(prodkey == "--dataflow") {
         for(std::size_t i=1; i<new_prod.size(); ++i)
           new_prod[i-1].tail->configure_data_sink(new_prod[i].head);
+      }
 
-        // add the production to the named production map if so labeled
-        if(!label.empty()) {
-          dataflow_production_map[label] =
-            production_chain(label,new_prod.front().head,new_prod.front().tail);
-        }
+      // add the production to the named production map if so labeled
+      if(!label.empty()) {
+        production_map[label] =
+          production_chain(label,new_prod.front().head,new_prod.front().tail);
+      }
 
-        if(detail::is_verbose<3>(vm)) {
-          if(label.empty())
-            std::cout << "Created anonymous dataflow production:\n";
-          else
-            std::cout << "Assigned label '" << label << "' to production:\n";
+      if(detail::is_verbose<3>(vm)) {
+        if(label.empty())
+          std::cout << "Created anonymous production:\n";
+        else
+          std::cout << "Assigned label '" << label << "' to production:\n";
 
-          for(auto &trig_prod : new_prod)
-            std::cout << "  '" << trig_prod.label << "'\n";
-        }
+        for(auto &trig_prod : new_prod)
+          std::cout << "  '" << trig_prod.label << "'\n";
       }
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     for(auto expansion : expansion_set) {
       if(detail::is_verbose<3>(vm))
@@ -667,12 +676,22 @@ int main(int argc, char *argv[])
       expansion->configure_options(vm);
     }
 
+    /*
+      Disable any expansions that have no affect. Must be done after
+      configure_options otherwise the client may inadvertently re-enable.
+    */
     for(auto expansion : expansion_set) {
-      if(detail::is_verbose<3>(vm))
-        std::cout << "Setting up com for expansion: '"
-          << expansion->system_identifier() << "'\n";
+      if(expansion->is_disabled() &&
+        (expansion->is_data_source() || expansion->is_data_sink()
+          || expansion->is_trigger_source() || expansion->is_trigger_sink()))
+      {
+        std::cerr << "Warning: expansion: '"
+          << expansion->system_identifier() << "' is configured as a trigger "
+            "or data source or sink but is configured as disabled\n";
+      }
 
-      expansion->setup_com();
+      // will throw an exception if trigger or data requirements are not met
+      check_source_sink(expansion);
     }
 
     for(auto expansion : expansion_set) {

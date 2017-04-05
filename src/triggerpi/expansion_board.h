@@ -97,12 +97,61 @@ struct expansion_factory : public basic_expansion_factory {
 };
 
 
+/*
+  flags that describe the trigger chains together.
+
+  'optional_{source,sink}' indicates that there is functionality
+  regardless of whether or not the expansion is linked to a
+  corresponding source or sink.
+
+  That is for a source spec, if \c optional_source is not specified,
+  then the expansion emits no trigger_start/trigger_stop calls and the
+  system will generate an error if a sink is attempted to be linked to
+  this expansion. If \c optional_source is specified, then the expansion
+  emits calls to trigger_start/trigger_stop if one or both of \c
+  single_source or \c multi_source is specified but if there are no
+  linked sinks, the expansion still has realizable side effects and
+  should not be disabled.
+
+  Likewise, for a sink spec, if \c optional_sink is not specified, then
+  the expansion pays no attention to trigger_start/trigger_stop calls
+  and the system will generate an error if a source is attempted to be
+  linked to this expansion. If \c optional_sink is specified, then the
+  expansion listens to calls to trigger_start/trigger_stop if one or
+  both of \c single_sink or \c multi_sink is specified but if there is
+  no linked source, the expansion has realizable side effects and
+  therefore the sink should not be disabled.
+
+  A single_source means that the expansion emits one and only one
+  trigger_start which can be optionally followed by a trigger_stop.
+  multi_source means that the expansion may emit one or more
+  trigger_start/trigger_stop calls. multi_source implies single_source.
+
+  A single_sink means that the expansion cannot accept more than one
+  emission of a trigger_start and trigger_stop. This is loosely defined
+  but an example includes a sink that exits the run function after a
+  trigger_start/trigger_stop therefore leaving a dangling source. A
+  multi_source means that the sink can accept one or more emissions of a
+  trigger_start/trigger_stop.
+
+  Trigger compatibility can be described as:
+    - single_source     -> single_sink
+    - single_source     -> multi_sink
+    - multi_source      -> multi_sink
+
+  An expansion without a source will not be disabled if
+  \c optional_source is configured. Likewise, an expansion without a
+  sink will not be disabled if if \c optional_sink is configured.
+
+*/
 enum class trigger_type_t : unsigned int {
-  none = 0,
-  single_shot_source = (1 << 0),
-  intermittent_source = ((1 << 1) | single_shot_source),
-  single_shot_sink = (1 << 2),
-  intermittent_sink = ((1 << 3) | single_shot_sink),
+  none            = 0x0000,
+  optional_source = 0x0001, // a sink is not required
+  single_source   = 0x0002, // emits triggers only once
+  multi_source    = 0x0006, // emits multiple triggers
+  optional_sink   = 0x0010, // a source is not required
+  single_sink     = 0x0020, // expects a single trigger
+  multi_sink      = 0x0060, // expects multiple triggers
 };
 
 inline constexpr trigger_type_t
@@ -126,59 +175,96 @@ operator^(trigger_type_t __x, trigger_type_t __y)
     (static_cast<unsigned int>(__x) ^ static_cast<unsigned int>(__y));
 }
 
-inline constexpr trigger_type_t source(trigger_type_t __x)
+inline constexpr unsigned int source_type(trigger_type_t __x)
 {
-  return (__x & trigger_type_t::intermittent_source);
+  return (static_cast<unsigned int>(__x) & 0xF);
 }
 
-inline constexpr trigger_type_t sink(trigger_type_t __x)
+inline constexpr unsigned int sink_type(trigger_type_t __x)
 {
-  return (__x & trigger_type_t::intermittent_sink);
+  return ((static_cast<unsigned int>(__x) & 0xF0) >> 4);
 }
 
-inline constexpr bool compatable_trigger(trigger_type_t source,
-  trigger_type_t sink)
+inline constexpr bool is_compatable(trigger_type_t _source,
+  trigger_type_t _sink)
 {
-  return ((static_cast<unsigned int>(source) &
-    (static_cast<unsigned int>(sink) >> 2)));
+  return (source_type(_source) != 0 && sink_type(_sink) != 0 &&
+        (((source_type(_source) & 4) & sink_type(_sink)) ||
+         ((source_type(_source) & 2) & sink_type(_sink))));
 }
 
 inline std::ostream & operator<<(std::ostream &os, const trigger_type_t &val)
 {
+  unsigned int _val = static_cast<unsigned int>(val);
+
   if(val == trigger_type_t::none)
-    os << "none";
+    return (os << "none");
 
-  if((source(val) & trigger_type_t::single_shot_source) ==
-    trigger_type_t::single_shot_source)
-  {
-    os << "single shot source";
-  }
-  else if((source(val) & trigger_type_t::intermittent_source) ==
-    trigger_type_t::intermittent_source)
-  {
-    os << "intermittent source";
+  if(source_type(val) & 1) {
+    os << "optional source"
+      << ((_val & (static_cast<unsigned int>(-1) ^ 0x01))?",":"");
   }
 
-  if((sink(val) & trigger_type_t::single_shot_sink) ==
-    trigger_type_t::single_shot_sink)
-  {
-    os << "single shot sink";
+  if(source_type(val) & 2) {
+    os << "single source"
+      << ((_val & (static_cast<unsigned int>(-1) ^ 0x03))?",":"");
   }
-  else if((sink(val) & trigger_type_t::intermittent_sink) ==
-    trigger_type_t::intermittent_sink)
-  {
-    os << "intermittent sink";
+
+  if(source_type(val) & 4) {
+    os << "multiple source"
+      << ((_val & (static_cast<unsigned int>(-1) ^ 0x07))?",":"");
   }
+
+  if(sink_type(val) & 1) {
+    os << "no sink"
+      << ((_val & (static_cast<unsigned int>(-1) ^ 0x1F))?",":"");
+  }
+
+  if(sink_type(val) & 2) {
+    os << "single sink"
+      << ((_val & (static_cast<unsigned int>(-1) ^ 0x3F))?",":"");
+  }
+
+  if(sink_type(val) & 4)
+    os << "multiple sink";
 
 
   return os;
 }
 
+
+/*
+  flags that describe the dataflow chains together.
+
+  'optional_{source,sink}' indicates that there is functionality
+  regardless of whether or not the expansion is linked to a
+  corresponding source or sink. That is, if optional_source is not
+  specified for an expansion and no sink is specified, then the
+  expansion has no effect and will be disabled. Likewise for
+  optional_sink when a source is not configured.
+
+  A source means that the expansion provides data to sinks in a manner
+  specific to the source expansion. For built in data source
+  functionality, this means that the source enqueues data blocks using
+  \c push_data_block.
+
+  A sink means that the expansion is expecting to receive data in a
+  manner specific to the sink expansion. For built in data sink
+  functionality, this means the source will enqueue data blocks using
+  \c push_data_block and the sink will retrieve them using
+  \c pop_data_block.
+
+  An expansion without a source will not be disabled if it is configured
+  as an optional_sink. Likewise, an expansion without a sink will not be
+  disabled if it is configured as an optional_source.
+*/
 enum class data_flow_t : unsigned int {
-  none = 0,
-  source = (1 << 0),
-  sink = (1 << 1),
-  transform = (source | sink)
+  none              = 0x00,
+  optional_source   = 0x01,
+  source            = 0x02,
+  optional_sink     = 0x10,
+  sink              = 0x20,
+  transform         = (source | sink)
 };
 
 inline constexpr data_flow_t
@@ -202,19 +288,53 @@ operator^(data_flow_t __x, data_flow_t __y)
     (static_cast<unsigned int>(__x) ^ static_cast<unsigned int>(__y));
 }
 
+inline constexpr unsigned int source_type(data_flow_t __x)
+{
+  return (static_cast<unsigned int>(__x) & 0xF);
+}
+
+inline constexpr unsigned int sink_type(data_flow_t __x)
+{
+  return ((static_cast<unsigned int>(__x) & 0xF0) >> 4);
+}
+
+inline constexpr bool is_compatable(data_flow_t _source, data_flow_t _sink)
+{
+  return (source_type(_source) != 0 && sink_type(_sink) != 0 &&
+        (((source_type(_source) & 4) & sink_type(_sink)) ||
+         ((source_type(_source) & 2) & sink_type(_sink))));
+}
+
 inline std::ostream & operator<<(std::ostream &os, const data_flow_t &val)
 {
+  unsigned int _val = static_cast<unsigned int>(val);
+
   if(val == data_flow_t::none)
     return (os << "none");
 
-  if(val == data_flow_t::source)
-    return (os << "source");
+  if(source_type(val) & 1) {
+    os << "optional source"
+      << ((_val & (static_cast<unsigned int>(-1) ^ 0x01))?",":"");
+  }
 
-  if(val == data_flow_t::sink)
-    return (os << "sink");
+  if(source_type(val) & 2) {
+    os << "source"
+      << ((_val & (static_cast<unsigned int>(-1) ^ 0x03))?",":"");
+  }
 
-  return (os << "transform");
+  if(sink_type(val) & 1) {
+    os << "optional sink"
+      << ((_val & (static_cast<unsigned int>(-1) ^ 0x01))?",":"");
+  }
+
+  if(sink_type(val) & 2) {
+    os << "sink"
+      << ((_val & (static_cast<unsigned int>(-1) ^ 0x03))?",":"");
+  }
+
+  return os;
 }
+
 
 
 
@@ -276,19 +396,17 @@ class expansion_board {
     */
     virtual void data_sink_config(const std::map<std::string,std::string> &) {}
 
-    // setup and enable whatever communication mechanism is needed to talk to
-    // this system.
-    // Pre: none
-    // Post: The system is set up for communication only
-    virtual void setup_com(void) {}
-
     /*
-      Ready the sytem to begin to function.
-      Pre: communications is set up for this system (see setup_com)
-      Post: The board is ready to function
+      Ready the sytem to begin to function. This includes setting up any
+      necessary communication and hardware settings. If there are no
+      trigger and data sources or sinks and this expansion is
+      initialized as these not being optional, then the expansion is
+      marked as disabled prior to this call.
+
+      Pre: All options and configuration has been provided to the expansion
+      Post: The expansion is ready to begin communication and function
     */
     virtual void initialize(void) {}
-
     /*
       Run this expansion board. Listen for a potential asynchronous stop
       call.
@@ -333,12 +451,12 @@ class expansion_board {
       then the trigger was not fired and the wake up was due to the trigger
       source begin shut down.
 
-      Example of proper use would be:
+      Example of proper use for intermittent triggers would be:
 
-      if(!wait_on_trigger_start())
-        //exit the run function
-      else
-        // do something now that triggered
+      while(wait_on_trigger_start()) {
+        // do something interesting until is_triggered() == false
+      }
+      // exit run function
     */
     bool wait_on_trigger_start(void);
 
@@ -564,11 +682,11 @@ class expansion_board {
     /*
       Enabling/disabling of this expansion
     */
-    void enable(void) {_enabled = true;}
+    void enable(void) {_disabled = false;}
 
-    void disable(void) {_enabled = false;}
+    void disable(void) {_disabled = true;}
 
-    bool is_enabled(void) const {return _enabled;}
+    bool is_disabled(void) const {return _disabled;}
 
 
 
@@ -613,7 +731,7 @@ class expansion_board {
     // loops
     std::vector<expansion_board *> _data_sinks;
 
-    bool _enabled;
+    bool _disabled;
     trigger_type_t _trigger_type;
     data_flow_t _dataflow_type;
 };
@@ -622,13 +740,13 @@ class expansion_board {
 
 
 inline expansion_board::expansion_board(trigger_type_t trigger_type,
-  data_flow_t data_flow) :_enabled(false), _trigger_type(trigger_type),
+  data_flow_t data_flow) :_disabled(false), _trigger_type(trigger_type),
     _dataflow_type(data_flow)
 {
 }
 
 inline expansion_board::expansion_board(data_flow_t data_flow,
-  trigger_type_t trigger_type) :_enabled(false), _trigger_type(trigger_type),
+  trigger_type_t trigger_type) :_disabled(false), _trigger_type(trigger_type),
     _dataflow_type(data_flow)
 {
 }
@@ -810,7 +928,7 @@ inline void expansion_board::configure_trigger_sink(
     throw std::runtime_error(err.str());
   }
 
-  if(!compatable_trigger(this->_trigger_type,sink->_trigger_type)) {
+  if(!is_compatable(this->_trigger_type,sink->_trigger_type)) {
     std::stringstream err;
     err << "expansion '" << sink->system_description()
       << "' with sink type '"
