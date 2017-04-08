@@ -263,8 +263,7 @@ enum class data_flow_t : unsigned int {
   optional_source   = 0x01,
   source            = 0x02,
   optional_sink     = 0x10,
-  sink              = 0x20,
-  transform         = (source | sink)
+  sink              = 0x20
 };
 
 inline constexpr data_flow_t
@@ -946,8 +945,11 @@ inline void expansion_board::configure_trigger_sink(
   sink->_trigger_sink = _trigger_source;
 }
 
-inline void expansion_board::configure_data_sink(const std::shared_ptr<expansion_board> &sink)
+inline void expansion_board::configure_data_sink(
+  const std::shared_ptr<expansion_board> &sink)
 {
+  constexpr std::size_t default_queue_size = 32;
+
   if(sink->_data_sink_queue.get()) {
     std::stringstream err;
     err << "expansion '" << sink->system_description()
@@ -956,7 +958,7 @@ inline void expansion_board::configure_data_sink(const std::shared_ptr<expansion
     throw std::runtime_error(err.str());
   }
 
-  if(this->_dataflow_type != data_flow_t::source) {
+  if((this->_dataflow_type & data_flow_t::source) == data_flow_t::none) {
     std::stringstream err;
     err << "expansion '" << this->system_description()
       << "' is not a dataflow source when trying to link to '"
@@ -964,7 +966,7 @@ inline void expansion_board::configure_data_sink(const std::shared_ptr<expansion
     throw std::runtime_error(err.str());
   }
 
-  if(sink->_dataflow_type != data_flow_t::sink) {
+  if((sink->_dataflow_type & data_flow_t::sink) == data_flow_t::none) {
     std::stringstream err;
     err << "expansion '" << sink->system_description()
       << "' is not a dataflow sink when trying to link to '"
@@ -973,6 +975,10 @@ inline void expansion_board::configure_data_sink(const std::shared_ptr<expansion
   }
 
   _data_sinks.push_back(sink.get());
+
+  sink->_data_sink_queue = std::make_shared<
+    b::lockfree::spsc_queue<data_block_ptr> >(default_queue_size);
+
 }
 
 #endif

@@ -204,9 +204,9 @@ void waveshare_ADS1256::setup_com(void)
 
 void waveshare_ADS1256::initialize(void)
 {
-  if(!is_trigger_sink()) {
-    throw std::runtime_error("No Source trigger!");
-  }
+//   if(!is_trigger_sink()) {
+//     throw std::runtime_error("No Source trigger!");
+//   }
 
   return;
 
@@ -258,6 +258,7 @@ void waveshare_ADS1256::trigger_sampling(const data_handler &handler,
 
 void waveshare_ADS1256::run(void)
 {
+return;
   std::cerr << "waveshare_ADS1256 running!\n";
 
   while(wait_on_trigger_start()) {

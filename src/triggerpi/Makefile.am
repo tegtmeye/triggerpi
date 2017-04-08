@@ -29,10 +29,13 @@ bin_PROGRAMS= \
 
 triggerpi_SOURCES= \
 	bits.h \
+	time_util.h \
 	expansion_board.h \
 	production_chain.h \
 	shared_block_buffer.h \
 	builtin_trigger.h \
+	builtin_time_trigger.h \
+	builtin_log_trigger.h \
 	builtin_const_datasource.h \
 	waveshare_ADS1256.h \
 	waveshare_ADS1256.cc \

@@ -106,7 +106,7 @@ void check_source_sink(std::shared_ptr<expansion_board> expansion)
   if(!expansion->is_data_sink() && (_data_sink == 2)) {
     std::stringstream err;
     err << "expansion: '" << expansion->system_identifier()
-      << "' requires a data sink but none is provided.";
+      << "' requires a data source but none is provided.";
     throw std::runtime_error(err.str());
   }
 }
@@ -560,6 +560,7 @@ int main(int argc, char *argv[])
     */
     std::set<std::shared_ptr<expansion_board> > expansion_set;
 
+#if 0
     if(!vm.count("system"))
       throw std::runtime_error("Missing system configuration item");
 
@@ -592,6 +593,7 @@ int main(int argc, char *argv[])
 
       expansion_set.emplace(expansion);
     }
+#endif
 
     // process the productions
     for(auto keyval : production_keyvalue_vec) {
@@ -643,15 +645,38 @@ int main(int argc, char *argv[])
 
       // now link the production together
       if(prodkey == "--trigger") {
-        for(std::size_t i=1; i<new_prod.size(); ++i)
+        for(std::size_t i=1; i<new_prod.size(); ++i) {
           new_prod[i-1].tail->configure_trigger_sink(new_prod[i].head);
+
+          if(detail::is_verbose<3>(vm)) {
+            std::cout << "linking trigger source: '"
+              << new_prod[i-1].tail->system_identifier() << "' to sink: '"
+              << new_prod[i].head->system_identifier() << "'\n";
+          }
+        }
       }
       else if(prodkey == "--dataflow") {
-        for(std::size_t i=1; i<new_prod.size(); ++i)
+        for(std::size_t i=1; i<new_prod.size(); ++i) {
           new_prod[i-1].tail->configure_data_sink(new_prod[i].head);
+
+          if(detail::is_verbose<3>(vm)) {
+            std::cout << "linking dataflow source: '"
+              << new_prod[i-1].tail->system_identifier() << "' to sink: '"
+              << new_prod[i].head->system_identifier() << "'\n";
+          }
+        }
       }
 
-      // add the production to the named production map if so labeled
+      /*
+        Add the production to the named production map if so labeled.
+        Unlabeled productions are considered anonymous and therefore
+        cannot be referred to later. The thing that this affects the
+        most is builtin expansions. This is generally the correct
+        behavior though because it may be desirable to have multiple
+        builtin expansion for various things that need to be disjoint.
+        Creating them and labeling them separately is away of achieving
+        this.
+      */
       if(!label.empty()) {
         production_map[label] =
           production_chain(label,new_prod.front().head,new_prod.front().tail);

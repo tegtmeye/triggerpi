@@ -1,7 +1,7 @@
-#ifndef TRIGGERPI_DATA_POOL_H
-#define TRIGGERPI_DATA_POOL_H
+#ifndef TRIGGERPI_BLOCK_BUFFER_H
+#define TRIGGERPI_BLOCK_BUFFER_H
 
-#include <boost/circular_buffer.hpp>
+#include <boost/lockfree/spsc_queue.hpp>
 
 #include <iostream>
 #include <sstream>
@@ -58,7 +58,7 @@ class shared_block_buffer {
   private:
     friend class shared_block_ptr;
 
-    typedef boost::circular_buffer<std::size_t> index_queue_type;
+    typedef boost::lockfree::spsc_queue<std::size_t> index_queue_type;
 
     /*
       Storage memory Layout:
@@ -228,7 +228,7 @@ inline shared_block_buffer::shared_block_buffer(std::size_t buff_size,
     head->_queue = &_queue;
     head->_id = i;
     head->_count = 0;
-    _queue.push_back(i);
+    _queue.push(i);
   }
 }
 
@@ -267,11 +267,9 @@ inline char * shared_block_buffer::n_buffer(std::size_t n)
 
 inline shared_block_buffer::shared_block_ptr shared_block_buffer::allocate(void)
 {
-  if(_queue.empty())
+  std::size_t id;
+  if(!_queue.pop(id))
     return shared_block_ptr();
-
-  std::size_t id = _queue.front();
-  _queue.pop_front();
 
   n_header(id)->_count = 1;
 
@@ -350,7 +348,7 @@ inline void shared_block_buffer::shared_block_ptr::deallocate(void)
 {
   shared_block_buffer::_header *header =
     reinterpret_cast<shared_block_buffer::_header *>(_block-_hoff);
-  header->_queue->push_back(header->_id);
+  header->_queue->push(header->_id);
 }
 
 
